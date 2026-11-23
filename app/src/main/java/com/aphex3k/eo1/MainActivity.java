@@ -846,6 +846,7 @@ public class MainActivity extends AppCompatActivity implements BrightnessManager
         }
         this.webServer = new WebServer(this);
         this.webServer.start();
+        startMusicAndJanitor();
 
         // The configuration was loaded above, before UpdateManager.acquire() — and so, incidentally,
         // before the web server started below, which is the ordering this comment always claimed.
@@ -1926,6 +1927,39 @@ public class MainActivity extends AppCompatActivity implements BrightnessManager
             appLogger.error(TAG, "brightness level changed but was NOT persisted on "
                     + capabilities.platform() + " — it will reset to the floor on the next start");
         }
+    }
+
+    /**
+     * Starts the frame's own Spotify poller (if connected) and tidies generated files. When playback
+     * starts or stops and the music takeover is on, move to or away from the music page right away
+     * instead of waiting for the next tick.
+     */
+    private void startMusicAndJanitor() {
+        final java.io.File files = getFilesDir();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    GeneratedFilesJanitor.run(files);
+                } catch (Throwable t) {
+                    Log.w(TAG, "janitor at start failed: " + t);
+                }
+            }
+        }, "janitor").start();
+        MusicService.get(files).setListener(new MusicService.Listener() {
+            @Override
+            public void onPlaybackChanged(boolean nowPlaying) {
+                WallSources s = WallSources.read(files);
+                if (s.music && s.musicTakeover) {
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            showNextImage();
+                        }
+                    });
+                }
+            }
+        });
     }
 
     @Override
@@ -5529,6 +5563,67 @@ public class MainActivity extends AppCompatActivity implements BrightnessManager
     }
 
     @Override
+    public String buildQueueJson() {
+        JsonObject o = new JsonObject();
+        o.add("now", queueItem(mediaManager != null ? mediaManager.getCurrentAsset() : null));
+        JsonArray next = new JsonArray();
+        if (mediaManager != null) {
+            for (MediaAsset a : mediaManager.upcomingAssets()) {
+                next.add(queueItem(a));
+            }
+            o.addProperty("remainingInPass", mediaManager.rotationRemainingInPass());
+            o.addProperty("passTotal", mediaManager.upcomingPassTotal());
+        }
+        o.add("upNext", next);
+        int interval = settingsManager != null && settingsManager.getConfiguration() != null
+                ? Math.max(1, settingsManager.getConfiguration().interval) : 5;
+        o.addProperty("intervalMinutes", interval);
+        o.addProperty("lastChangeAtMs", lastRotationActivityMs);
+        o.addProperty("nextChangeAtMs", lastRotationActivityMs > 0 ? lastRotationActivityMs + interval * 60000L : 0);
+        o.addProperty("serverTime", System.currentTimeMillis());
+        o.addProperty("screenOn", brightnessManager != null && brightnessManager.getShouldTheScreenBeOn());
+        WallSources ws = WallSources.read(getFilesDir());
+        JsonObject music = new JsonObject();
+        music.addProperty("enabled", ws.music);
+        music.addProperty("takeover", ws.music && ws.musicTakeover);
+        music.addProperty("playing", MusicService.get(getFilesDir()).isPlaying());
+        o.add("music", music);
+        return o.toString();
+    }
+
+    private static JsonObject queueItem(@Nullable MediaAsset a) {
+        if (a == null) {
+            return null;
+        }
+        JsonObject i = new JsonObject();
+        i.addProperty("key", a.key());
+        i.addProperty("backendId", a.backendId);
+        i.addProperty("type", mediaTypeName(a.type));
+        String kind;
+        String b = a.backendId == null ? "" : a.backendId;
+        if (b.equals(WallSources.MUSIC_ID)) {
+            kind = "music";
+        } else if (b.startsWith(WallSources.ART_ID_PREFIX + "keep-")) {
+            kind = "art";
+            // the kept piece's record file doubles as its thumbnail on the phone page
+            i.addProperty("name", "art-" + b.substring((WallSources.ART_ID_PREFIX + "keep-").length()) + ".jpg");
+        } else if (b.startsWith(WallSources.ART_ID_PREFIX)) {
+            kind = "art-live";
+        } else if (a.type == MediaType.WEB) {
+            kind = "web";
+        } else if (a.originalFileName != null && a.localPath != null) {
+            kind = WallSources.kindOf(a.originalFileName);
+        } else {
+            kind = "other";
+        }
+        i.addProperty("kind", kind);
+        if (a.originalFileName != null) {
+            i.addProperty("name", a.originalFileName);
+        }
+        return i;
+    }
+
+    @Override
     public String buildStateJson() {
         JsonObject o = new JsonObject();
 
@@ -6218,6 +6313,26 @@ public class MainActivity extends AppCompatActivity implements BrightnessManager
             }
             return sendKeyCode(keyCode);
         }
+        // The phone page's Maintenance buttons (POST only). Both reuse the watchdog's own routines,
+        // on their own thread: a reboot goes through the frame's adbd and can take a moment.
+        if ("reboot".equals(action) || "restart-app".equals(action)) {
+            final boolean reboot = "reboot".equals(action);
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        if (reboot) {
+                            rebootDevice("requested from the phone page");
+                        } else {
+                            selfRestart();
+                        }
+                    } catch (Throwable t) {
+                        Log.w(TAG, "web " + (reboot ? "reboot" : "restart") + " failed: " + t);
+                    }
+                }
+            }, "web-maintenance").start();
+            return true;
+        }
         if ("watchdog".equals(action)) {
             // Debug builds only: rungs escalate over hours on real hardware, and the whole point of
             // the ladder is that nobody has to be there when it fires. level 1..5 forces one.
@@ -6249,10 +6364,14 @@ public class MainActivity extends AppCompatActivity implements BrightnessManager
                 // Debug-only: "the clip that misbehaves is #600 of 1000", which ?action=next cannot
                 // promise to reach. Checked and parked from this thread, which may read the pool's
                 // key set but never its records; the rotation worker picks the record up.
-                if (!BuildConfig.DEBUG || mediaManager == null) {
+                final String assetKey = params != null ? params.get("asset") : null;
+                // Release builds allow pinning an uploaded file (the phone page's "Show now");
+                // any other backend's asset stays debug-only.
+                boolean localAsset = assetKey != null
+                        && (assetKey.startsWith("local:") || assetKey.startsWith(WallSources.ART_ID_PREFIX));
+                if ((!BuildConfig.DEBUG && !localAsset) || mediaManager == null) {
                     return false;
                 }
-                final String assetKey = params != null ? params.get("asset") : null;
                 if (!mediaManager.queueAssetDisplay(assetKey)) {
                     return false;
                 }
@@ -6270,9 +6389,25 @@ public class MainActivity extends AppCompatActivity implements BrightnessManager
             case "screen":
                 task = this::toggleScreenOn;
                 break;
-            case "brightness":
-                task = () -> adjustMinimumBrightness("web");
+            case "brightness": {
+                String stepParam = params != null ? params.get("step") : null;
+                if (stepParam != null) {
+                    final int step;
+                    try {
+                        step = Integer.parseInt(stepParam.trim());
+                    } catch (NumberFormatException e) {
+                        return false;
+                    }
+                    task = () -> {
+                        this.brightnessManager.setShouldTheScreenBeOn(true);
+                        turnScreenOn();
+                        this.brightnessManager.setMinimumBrightnessStep(step, "web");
+                    };
+                } else {
+                    task = () -> adjustMinimumBrightness("web");
+                }
                 break;
+            }
             case "config":
                 task = this::showConfigurationUI;
                 break;
