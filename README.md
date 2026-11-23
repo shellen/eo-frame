@@ -28,6 +28,8 @@ albums you've been playing. There are no accounts, no subscription and no cloud 
 - **Manage the rotation.** Your library is laid out as one row per source (photos, kept art, NYT
   and Spotify). Tap a picture to preview it, **Show now** or **Remove** it, or select several.
 - **Control the frame:** next picture, screen on or off, and a brightness slider.
+- **Bring in other sources:** your own Immich server, a Flickr stream or any web page, added from the
+  phone.
 - **Choose what's on the wall:** switch Photos, Generative art, the NYT front page and Spotify on or
   off in any mix, and choose how often art comes up.
 - **Never fills up.** Old generated images (yesterday's front page, last week's album grid) are
@@ -142,6 +144,8 @@ different way, for a phone-first home setup:
 - The phone page can reboot the frame without the options-dialog opt-in.
 - The phone page can install an APK without Trusted Network. It still has to be signed with the
   installed app's key and be a newer version.
+- The phone page can add, switch and remove Immich, Flickr and web-page sources without Trusted
+  Network. Passwords and keys are write-only: the page never reads them back.
 
 ## Licensing
 

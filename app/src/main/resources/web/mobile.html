@@ -152,6 +152,20 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
 .empty{padding:26px 8px;text-align:center;color:var(--muted);border:1px dashed var(--line)}
 .empty b{display:block;color:var(--ink);font:600 18px var(--serif);margin-bottom:4px}
 
+/* placeholders: live art, remote photos */
+.live-art{background:repeating-linear-gradient(135deg,var(--accent) 0 14px,#f0b23a 14px 28px,#2f6a8c 28px 42px,var(--bg) 42px 56px)!important;background-size:auto!important}
+.live-art .qicon,.nowpanel .thumb.live-art{color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.remote{background:var(--fill)!important}
+.remote .qicon,.nowpanel .thumb.remote{color:var(--ink)}
+.nowpanel .thumb{display:flex;align-items:flex-end;padding:8px;font:700 13px/1.2 var(--serif);color:#fff}
+.srcform{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.srcform input{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--ink);border-radius:6px;padding:9px 11px}
+.hint{font-size:13px;color:var(--muted);margin:2px 0 0}
+.srcitem{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+.srcitem b{display:block;font-weight:600}
+.srcitem small{display:block;color:var(--muted);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:62vw}
+.srcitem small.bad{color:var(--bad)}
+.srcitem .ctl{display:flex;align-items:center;gap:12px;flex:none}
 /* library */
 .addrow{display:flex;gap:8px;align-items:stretch;margin-bottom:6px}
 .addrow .primary{flex:1;width:auto}
@@ -436,6 +450,37 @@ body.sketch .autorow > span:first-child{font-family:var(--hand);font-size:16px}
       <div class="autorow"><span>Refresh whenever I open this page</span><label class="switch"><input type="checkbox" id="nytAuto"><span></span></label></div>
     </div>
   </div>
+  <div class="xitem" id="srcCard">
+    <div class="xhead">
+      <button class="xtoggle" aria-expanded="false"><span class="xt"><b>Photo services &amp; web pages</b><small id="srcSummary">Immich, Flickr or any web page</small></span><span class="chev"></span></button>
+    </div>
+    <div class="xbody">
+      <p>Pull pictures from your own Immich server or a Flickr stream, or show a web page now and then. They join the rotation alongside everything else.</p>
+      <div id="srcList"></div>
+      <div class="sub" style="margin-top:14px">Add a source</div>
+      <div class="seg" role="group" aria-label="Source type" id="srcType">
+        <button data-t="immich" class="sel">Immich</button>
+        <button data-t="flickr">Flickr</button>
+        <button data-t="web">Web page</button>
+      </div>
+      <div class="srcform" data-for="immich">
+        <input id="imHost" placeholder="Server address, e.g. http://192.168.1.20:2283" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <input id="imUser" placeholder="Account email" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <input id="imPass" type="password" placeholder="Password" autocomplete="new-password">
+        <p class="hint">Tip: make an Immich account just for the frame and share albums with it. The frame shows everything that account can see.</p>
+      </div>
+      <div class="srcform" data-for="flickr" hidden>
+        <input id="flKey" placeholder="Flickr API key (32 characters)" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <input id="flSrc" placeholder="Photostream or album, e.g. https://www.flickr.com/photos/name/" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <p class="hint">Get a free key at flickr.com/services/apps/create. Only public, safe photos are shown.</p>
+      </div>
+      <div class="srcform" data-for="web" hidden>
+        <input id="wbUrl" placeholder="Page address, e.g. http://192.168.1.20/dashboard/" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <p class="hint">The page is shown full screen in the frame’s 2013-era browser, so simple pages work best.</p>
+      </div>
+      <button class="primary" id="srcAdd" style="margin-top:10px">Add source</button>
+    </div>
+  </div>
 </section>
 
 <!-- ============ FRAME ============ -->
@@ -566,7 +611,8 @@ body.sketch .autorow > span:first-child{font-family:var(--hand);font-size:16px}
     if (/^spotify-nowplaying-/.test(n)) return "Spotify · Now playing";
     if (/^art-/.test(n)) {
       var am = /^art-(.+)-[a-z0-9]{1,8}\.[^.]+$/.exec(n), sid = am ? am[1] : "";
-      var hit = (typeof artStyleList !== "undefined" ? artStyleList : []).filter(function(x){ return x.id === sid; })[0];
+      var slug = function(t){ return String(t).toLowerCase().replace(/[^a-z0-9]+/g, "-"); };
+      var hit = (typeof artStyleList !== "undefined" ? artStyleList : []).filter(function(x){ return x.id === sid || slug(x.name) === sid; })[0];
       var label = hit ? hit.name : sid.replace(/-/g, " ").replace(/\b\w/g, function(c){ return c.toUpperCase(); });
       return "Kept art" + (label ? " · " + label : "");
     }
@@ -619,12 +665,13 @@ body.sketch .autorow > span:first-child{font-family:var(--hand);font-size:16px}
     if (typeof br.step === "number" && !brightDragging && Date.now() - brightSetAt > 4000) { $("bright").value = br.step + 1; $("brightLabel").textContent = (br.step + 1) + "/8"; brightFill(); }
     renderInfo(s); renderUpdate(s);
     var cur = media.current || {};
-    var curName = cur.originalFileName || (cur.key ? String(cur.key).split(/[\/:]/).pop() : "");
-    $("nowName").textContent = friendlyName(curName) || (on ? "—" : "Sleeping");
-    var isLocal = curName && files.some(function(f){ return f.name === curName; });
-    $("nowThumb").style.backgroundImage = isLocal && !VIDEO.test(curName) ? 'url("' + thumbUrl(curName) + '")' : "";
-    markCurrent(curName);
-    renderSettings(cfg);
+    // Fallback until /queue answers: describe the current asset from /state.
+    if (!queue || !queue.now) {
+      var b0 = cur.backendId || "", nm0 = cur.originalFileName || "";
+      renderNow(cur.key ? {backendId: b0, name: nm0 || undefined,
+        kind: b0 === "music-1" ? "music" : /^art-keep-/.test(b0) ? "art" : /^art-/.test(b0) ? "art-live" : cur.type === "web" ? "web" : b0 === "local" ? kindOf(nm0) : b0.replace(/-\d+$/, "")} : null, on);
+    }
+    renderSettings(cfg); renderMoreSources(cfg);
   }
   function markCurrent(n){
     Array.prototype.forEach.call(document.querySelectorAll(".tile"), function(t){
@@ -703,25 +750,41 @@ body.sketch .autorow > span:first-child{font-family:var(--hand);font-size:16px}
   // ---------- up next ----------
   var queue = null;
   function clock(ms){ return new Date(ms).toLocaleTimeString(undefined, {hour: "numeric", minute: "2-digit"}); }
+  // One description for anything the frame can show: a name people can read, and art for it.
+  var LOCAL_KINDS = {photos: 1, art: 1, nyt: 1, spotify: 1};
+  function describe(item){
+    var k = item.kind || "", nm = item.name || "";
+    if (k === "music") {
+      var cur = (music && (music.current || music.last)) || null;
+      return {name: "Live music" + (cur ? " · " + cur.artist : ""), img: cur && cur.art ? musicImg(cur.art) : "", cls: "live-music", label: "Live music"};
+    }
+    if (k === "art-live") return {name: "Generative art · a new piece", img: "", cls: "live-art", label: "Generative art"};
+    if (k === "art" && !nm) return {name: "Kept art", img: "", cls: "live-art", label: "Kept art"};
+    if (LOCAL_KINDS[k] && nm) return {name: friendlyName(nm), img: VIDEO.test(nm) ? "" : thumbUrl(nm), cls: "", label: VIDEO.test(nm) ? "Video" : ""};
+    var src = k === "immich" ? "Immich" : k === "flickr" ? "Flickr" : k === "web" ? "Web page" : "Photo";
+    return {name: src + (nm ? " · " + nm.replace(/\.[^.]+$/, "") : ""), img: "", cls: "remote", label: src};
+  }
+  function renderNow(item, on){
+    if (!item) { $("nowName").textContent = on ? "—" : "Sleeping"; $("nowThumb").style.backgroundImage = ""; $("nowThumb").className = "thumb"; $("nowThumb").textContent = ""; markCurrent(""); return; }
+    var d = describe(item);
+    $("nowName").textContent = d.name;
+    $("nowThumb").className = "thumb" + (d.cls ? " " + d.cls : "");
+    $("nowThumb").style.backgroundImage = d.img ? 'url("' + d.img + '")' : "";
+    $("nowThumb").textContent = d.img ? "" : d.label;
+    markCurrent(item.name || "");
+  }
   function queueTile(item, label, isNow){
     var b = document.createElement("button"); b.className = "qi" + (isNow ? " now" : "");
     var art = document.createElement("div"); art.className = "qart";
-    var name = "";
-    if (item.kind === "art-live") { art.classList.add("live-art"); art.innerHTML = '<div class="qicon">Live art</div>'; name = "Generative art"; }
-    else if (item.kind === "music") {
-      art.classList.add("live-music");
-      var cur = (music && (music.current || music.last)) || null;
-      if (cur && cur.art) art.style.backgroundImage = 'url("' + musicImg(cur.art) + '")'; else art.innerHTML = '<div class="qicon">Live music</div>';
-      name = "Live music" + (cur ? " · " + cur.artist : "");
-    }
-    else if (item.name) { art.style.backgroundImage = VIDEO.test(item.name) ? "" : 'url("' + thumbUrl(item.name) + '")'; name = friendlyName(item.name); }
-    else { art.innerHTML = '<div class="qicon">Web page</div>'; name = item.backendId || "Web page"; }
+    var d = describe(item), name = d.name;
+    if (d.cls) art.classList.add(d.cls);
+    if (d.img) art.style.backgroundImage = 'url("' + d.img + '")'; else art.innerHTML = '<div class="qicon"></div>', art.firstChild.textContent = d.label;
     if (isNow) { var l = document.createElement("div"); l.className = "ql"; l.textContent = "On now"; art.appendChild(l); }
     var w = document.createElement("div"); w.className = "qwhen"; w.textContent = label;
     var nm = document.createElement("div"); nm.className = "qname"; nm.textContent = name;
     b.appendChild(art); b.appendChild(w); b.appendChild(nm);
     var f = item.name && files.filter(function(x){ return x.name === item.name; })[0];
-    b.onclick = function(){ if (f) openSheet(f); else if (item.kind === "art-live") { showTab("extras"); openExtra("artCard", true); } else if (item.kind === "music") { showTab("extras"); openExtra("spCard", true); } };
+    b.onclick = function(){ if (f) openSheet(f); else if (item.kind === "art-live" || item.kind === "art") { showTab("extras"); openExtra("artCard", true); } else if (item.kind === "music") { showTab("extras"); openExtra("spCard", true); } else if (item.kind === "immich" || item.kind === "flickr" || item.kind === "web") { showTab("extras"); openExtra("srcCard", true); } };
     return b;
   }
   function renderQueue(){
@@ -737,6 +800,7 @@ body.sketch .autorow > span:first-child{font-family:var(--hand);font-size:16px}
     $("upNote").textContent = notes.join(" ");
     var mins = Math.max(0, Math.round((base - now) / 60000));
     $("upWhen").textContent = "every " + intervalLabel(q.intervalMinutes || 5);
+    renderNow(q.now || null, q.screenOn !== false);
     if (q.now) box.appendChild(queueTile(q.now, "Showing", true));
     (q.upNext || []).forEach(function(it, i){
       var label = i === 0 ? (mins <= 0 ? "Next · any moment" : "Next · in " + mins + " min") : clock(base + i * step + off);
@@ -1549,7 +1613,7 @@ body.sketch .autorow > span:first-child{font-family:var(--hand);font-size:16px}
   $("artFrame").addEventListener("load", function(){
     try {
       var w = $("artFrame").contentWindow;
-      if (w.ART_STYLES && !artStyleList.length) { artStyleList = w.ART_STYLES; renderArtStyles(); }
+      if (w.ART_STYLES && !artStyleList.length) { artStyleList = w.ART_STYLES; renderArtStyles(); renderGrid(); if (queue) renderQueue(); }
       var id = (w.ART_CURRENT && w.ART_CURRENT.id) || artStyle, hit = artStyleList.filter(function(s){ return s.id === id; })[0];
       $("artName").textContent = hit ? hit.name : "Generative art";
     } catch (e) { $("artName").textContent = "Generative art"; }
@@ -1664,6 +1728,51 @@ body.sketch .autorow > span:first-child{font-family:var(--hand);font-size:16px}
       try { localStorage.setItem("eoSketch", this.checked ? "1" : "0"); } catch(e) {}
     };
   })();
+
+  // ---------- photo services & web pages ----------
+  var srcType = "immich", SRC_NAMES = {immich: "Immich", flickr: "Flickr", web: "Web page"};
+  Array.prototype.forEach.call(document.querySelectorAll("#srcType button"), function(b){
+    b.onclick = function(){
+      srcType = b.dataset.t;
+      Array.prototype.forEach.call(document.querySelectorAll("#srcType button"), function(x){ x.classList.toggle("sel", x === b); });
+      Array.prototype.forEach.call(document.querySelectorAll(".srcform"), function(f){ f.hidden = f.dataset.for !== srcType; });
+    };
+  });
+  function backendChange(change, msg){
+    return fetch("/settings", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({backend: change})})
+      .then(function(r){ return r.json().then(function(j){ if (!r.ok || !j.ok) throw new Error(j.msg || j.error || ("HTTP " + r.status)); }); })
+      .then(function(){ toast(msg); setTimeout(function(){ refreshState(); refreshQueue(); }, 1200); });
+  }
+  function renderMoreSources(cfg){
+    var list = ((cfg && cfg.backends) || []).filter(function(b){ return SRC_NAMES[b.type] && !/^art-/.test(b.id) && b.id !== "music-1"; });
+    $("srcSummary").textContent = list.length ? list.map(function(b){ return SRC_NAMES[b.type]; }).join(", ") + (list.some(function(b){ return !b.valid; }) ? " · needs attention" : "") : "Immich, Flickr or any web page";
+    var box = $("srcList"); box.innerHTML = "";
+    list.forEach(function(b){
+      var row = document.createElement("div"); row.className = "srcitem";
+      var t = document.createElement("span"), ttl = document.createElement("b"), det = document.createElement("small");
+      ttl.textContent = SRC_NAMES[b.type];
+      det.textContent = !b.valid ? "Incomplete. Remove it and add it again" : (b.host || b.source || "");
+      if (!b.valid) det.className = "bad";
+      t.appendChild(ttl); t.appendChild(det);
+      var ctl = document.createElement("span"); ctl.className = "ctl";
+      var rm = document.createElement("button"); rm.className = "linkbtn"; rm.textContent = "Remove";
+      rm.onclick = function(){ askConfirm("Remove this " + SRC_NAMES[b.type] + " source?", "Remove", "Its pictures leave the rotation. You can add it again later.").then(function(y){ if (y) backendChange({op: "remove", id: b.id}, "Removed").catch(function(e){ toast("Couldn’t remove it: " + e.message, 4000); }); }); };
+      var sw = document.createElement("label"); sw.className = "switch"; sw.innerHTML = '<input type="checkbox"><span></span>';
+      var cb = sw.firstChild; cb.checked = b.enabled !== false;
+      cb.onchange = function(){ backendChange({op: "enable", id: b.id, enabled: cb.checked}, SRC_NAMES[b.type] + (cb.checked ? " on" : " off")).catch(function(e){ cb.checked = !cb.checked; toast("Couldn’t change it: " + e.message, 4000); }); };
+      ctl.appendChild(rm); ctl.appendChild(sw); row.appendChild(t); row.appendChild(ctl); box.appendChild(row);
+    });
+  }
+  $("srcAdd").onclick = function(){
+    var c = {op: "add", type: srcType};
+    if (srcType === "immich") { c.host = $("imHost").value.trim(); c.userid = $("imUser").value.trim(); c.password = $("imPass").value; }
+    else if (srcType === "flickr") { c.apiKey = $("flKey").value.trim(); c.source = $("flSrc").value.trim(); }
+    else { c.host = $("wbUrl").value.trim(); }
+    $("srcAdd").disabled = true;
+    backendChange(c, SRC_NAMES[srcType] + " added. Its pictures join the rotation shortly").then(function(){
+      ["imHost", "imUser", "imPass", "flKey", "flSrc", "wbUrl"].forEach(function(id){ $(id).value = ""; });
+    }).catch(function(e){ toast(e.message, 5000); }).then(function(){ $("srcAdd").disabled = false; });
+  };
 
   // ---------- maintenance ----------
   function waitForFrame(msg){
