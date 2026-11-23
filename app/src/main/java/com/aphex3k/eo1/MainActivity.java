@@ -5565,11 +5565,19 @@ public class MainActivity extends AppCompatActivity implements BrightnessManager
     @Override
     public String buildQueueJson() {
         JsonObject o = new JsonObject();
-        o.add("now", queueItem(mediaManager != null ? mediaManager.getCurrentAsset() : null));
+        // kept pieces: their live entry's id -> the record file that doubles as the thumbnail
+        java.util.Map<String, String> keptFiles = new java.util.HashMap<String, String>();
+        for (UploadedMedia.FileInfo f : listUploadedFiles()) {
+            WallSources.KeptArt k = WallSources.keptArtFor(f.name);
+            if (k != null) {
+                keptFiles.put(k.backendId(), f.name);
+            }
+        }
+        o.add("now", queueItem(mediaManager != null ? mediaManager.getCurrentAsset() : null, keptFiles));
         JsonArray next = new JsonArray();
         if (mediaManager != null) {
             for (MediaAsset a : mediaManager.upcomingAssets()) {
-                next.add(queueItem(a));
+                next.add(queueItem(a, keptFiles));
             }
             o.addProperty("remainingInPass", mediaManager.rotationRemainingInPass());
             o.addProperty("passTotal", mediaManager.upcomingPassTotal());
@@ -5591,7 +5599,7 @@ public class MainActivity extends AppCompatActivity implements BrightnessManager
         return o.toString();
     }
 
-    private static JsonObject queueItem(@Nullable MediaAsset a) {
+    private static JsonObject queueItem(@Nullable MediaAsset a, java.util.Map<String, String> keptFiles) {
         if (a == null) {
             return null;
         }
@@ -5606,11 +5614,18 @@ public class MainActivity extends AppCompatActivity implements BrightnessManager
         } else if (b.startsWith(WallSources.ART_ID_PREFIX + "keep-")) {
             kind = "art";
             // the kept piece's record file doubles as its thumbnail on the phone page
-            i.addProperty("name", "art-" + b.substring((WallSources.ART_ID_PREFIX + "keep-").length()) + ".jpg");
+            String record = keptFiles.get(b);
+            if (record != null) {
+                i.addProperty("name", record);
+            }
         } else if (b.startsWith(WallSources.ART_ID_PREFIX)) {
             kind = "art-live";
         } else if (a.type == MediaType.WEB) {
             kind = "web";
+        } else if (b.startsWith("immich")) {
+            kind = "immich";
+        } else if (b.startsWith("flickr")) {
+            kind = "flickr";
         } else if (a.originalFileName != null && a.localPath != null) {
             kind = WallSources.kindOf(a.originalFileName);
         } else {

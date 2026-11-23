@@ -1348,6 +1348,13 @@ public class WebServer {
                 return;
             }
         }
+        if (req.has("backend")) {
+            String err = applyBackendChange(cfg, req.getAsJsonObject("backend"));
+            if (err != null) {
+                sendJson(os, 400, errorJson(err));
+                return;
+            }
+        }
         if (req.has("sources")) {
             File dir = controller.uploadedDir().getParentFile();
             WallSources ws = WallSources.read(dir);
@@ -1682,6 +1689,99 @@ public class WebServer {
             }
         }
         cfg.add("backends", out);
+    }
+
+    /**
+     * The phone page's "More sources": add, remove or switch an Immich, Flickr or web-page backend.
+     * Credentials are write-only (the state JSON never returns them). The frame's own entries
+     * (local uploads, live art, live music) cannot be changed this way.
+     *
+     * @return an error for the page, or null when {@code cfg} was updated
+     */
+    static String applyBackendChange(JsonObject cfg, JsonObject change) {
+        String op = change.has("op") ? change.get("op").getAsString() : "";
+        JsonArray backends = cfg.has("backends") && cfg.get("backends").isJsonArray()
+                ? cfg.getAsJsonArray("backends") : new JsonArray();
+        if (op.equals("remove") || op.equals("enable")) {
+            String id = change.has("id") ? change.get("id").getAsString() : "";
+            if (reservedBackendId(id)) {
+                return "that source is managed by the frame";
+            }
+            for (int i = 0; i < backends.size(); i++) {
+                JsonObject b = backends.get(i).getAsJsonObject();
+                if (id.equals(b.has("id") ? b.get("id").getAsString() : null)) {
+                    if (op.equals("remove")) {
+                        backends.remove(i);
+                    } else {
+                        b.addProperty("enabled", change.has("enabled") && change.get("enabled").getAsBoolean());
+                    }
+                    cfg.add("backends", backends);
+                    return null;
+                }
+            }
+            return "no source with that id";
+        }
+        if (!op.equals("add")) {
+            return "unknown change";
+        }
+        String type = change.has("type") ? change.get("type").getAsString() : "";
+        JsonObject b = new JsonObject();
+        b.addProperty("type", type);
+        if (type.equals("immich")) {
+            String host = str(change, "host");
+            if (!isHttpUrl(host) || str(change, "userid").isEmpty() || str(change, "password").isEmpty()) {
+                return "Immich needs a server address (http:// or https://), an email and a password";
+            }
+            b.addProperty("host", host.endsWith("/") ? host : host + "/");
+            b.addProperty("userid", str(change, "userid"));
+            b.addProperty("password", str(change, "password"));
+            b.addProperty("apiVersion", "auto");
+        } else if (type.equals("flickr")) {
+            String key = str(change, "apiKey");
+            String src = str(change, "source");
+            if (!key.matches("[0-9a-fA-F]{32}") || !src.matches("https://(www\\.)?flickr\\.com/.{1,200}")) {
+                return "Flickr needs a 32-character API key and a flickr.com photostream or album address";
+            }
+            b.addProperty("apiKey", key);
+            b.addProperty("source", src);
+        } else if (type.equals("web")) {
+            String host = str(change, "host");
+            if (!isHttpUrl(host)) {
+                return "A web page needs an address starting with http:// or https://";
+            }
+            b.addProperty("host", host);
+        } else {
+            return "unknown source type";
+        }
+        int n = 1;
+        java.util.Set<String> ids = new java.util.HashSet<String>();
+        for (int i = 0; i < backends.size(); i++) {
+            JsonObject o = backends.get(i).getAsJsonObject();
+            if (o.has("id")) {
+                ids.add(o.get("id").getAsString());
+            }
+        }
+        while (ids.contains(type + "-" + n)) {
+            n++;
+        }
+        b.addProperty("id", type + "-" + n);
+        b.addProperty("enabled", true);
+        backends.add(b);
+        cfg.add("backends", backends);
+        return null;
+    }
+
+    static boolean reservedBackendId(String id) {
+        return id == null || id.isEmpty() || id.equals("local") || id.equals(WallSources.MUSIC_ID)
+                || id.startsWith(WallSources.ART_ID_PREFIX);
+    }
+
+    private static String str(JsonObject o, String k) {
+        return o.has(k) && !o.get(k).isJsonNull() ? o.get(k).getAsString().trim() : "";
+    }
+
+    private static boolean isHttpUrl(String s) {
+        return s != null && s.length() < 500 && s.matches("https?://[^\\s/$.?#][^\\s]*");
     }
 
     private static JsonObject webEntry(String id, String url) {
