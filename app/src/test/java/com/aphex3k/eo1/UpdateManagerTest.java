@@ -414,6 +414,14 @@ public class UpdateManagerTest {
     }
 
     @Test
+    public void reconcile_stageOlderThanRunningIsDropped() {
+        // a newer build was installed another way; the old stage can only fail as a downgrade
+        UpdateState r = UpdateManager.reconcileState(state(UpdateState.State.STAGED), 20014);
+        assertEquals(UpdateState.State.IDLE, r.state);
+        assertEquals(0, r.expectedVersionCode);
+    }
+
+    @Test
     public void reconcile_installPendingStaleDemotesToStaged() {
         UpdateState st = state(UpdateState.State.INSTALL_PENDING);
         st.lastError = "boom";

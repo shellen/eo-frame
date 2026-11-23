@@ -259,6 +259,45 @@ public class WebServer {
         if (path.equals("/") || path.equals("/index.html")) {
             return "index";
         }
+        if (path.equals("/advanced")) {
+            return "advanced";
+        }
+        if (path.equals("/icon.png")) {
+            return "icon";
+        }
+        if (path.startsWith("/fonts/")) {
+            return "font";
+        }
+        if (path.equals("/update/apk")) {
+            return "phoneUpdate";
+        }
+        if (path.equals("/queue")) {
+            return "queue";
+        }
+        if (path.equals("/music") || path.equals("/music/")) {
+            return "musicPage";
+        }
+        if (path.equals("/music/state")) {
+            return "musicState";
+        }
+        if (path.equals("/music/img")) {
+            return "musicImg";
+        }
+        if (path.equals("/music/connect")) {
+            return "musicConnect";
+        }
+        if (path.equals("/music/disconnect")) {
+            return "musicDisconnect";
+        }
+        if (path.equals("/art") || path.equals("/art/")) {
+            return "art";
+        }
+        if (path.startsWith("/thumb/")) {
+            return "thumb";
+        }
+        if (path.equals("/settings")) {
+            return "simpleSettings";
+        }
         if (path.equals("/state")) {
             return "state";
         }
@@ -357,7 +396,7 @@ public class WebServer {
      */
     private static final java.util.Set<String> POST_ONLY_ACTIONS =
             java.util.Collections.unmodifiableSet(new java.util.HashSet<String>(
-                    java.util.Arrays.asList("keyevent", "watchdog", "brightness")));
+                    java.util.Arrays.asList("keyevent", "watchdog", "brightness", "reboot", "restart-app")));
 
     static boolean controlAllows(String method, String action) {
         if (action == null) {
@@ -526,8 +565,160 @@ public class WebServer {
                     send(os, 405, "text/plain", "method not allowed");
                     return;
                 }
+                String mobile = mobilePage();
+                send(os, 200, "text/html; charset=utf-8", mobile != null ? mobile : renderIndex());
+                break;
+
+            case "advanced":
+                if (!method.equals("GET")) {
+                    send(os, 405, "text/plain", "method not allowed");
+                    return;
+                }
                 send(os, 200, "text/html; charset=utf-8", renderIndex());
                 break;
+
+            case "thumb": {
+                if (!method.equals("GET")) {
+                    send(os, 405, "text/plain", "method not allowed");
+                    return;
+                }
+                String tname = urlDecode(segmentAfter(path, "/thumb/", null));
+                File src = controller.uploadedFile(tname);
+                if (src == null || !src.isFile()) {
+                    send(os, 404, "text/plain", "not found");
+                    return;
+                }
+                File thumb = thumbnailFor(src);
+                if (thumb == null) {
+                    streamFile(os, src, contentTypeFor(src.getName()));   // undecodable here: send the original
+                } else {
+                    streamFile(os, thumb, "image/jpeg");
+                }
+                break;
+            }
+
+            case "font": {
+                // The phone page's bundled typeface (Shantell Sans, SIL Open Font License).
+                String fname = path.substring("/fonts/".length());
+                byte[] font = fname.matches("[a-z0-9-]{1,40}\\.woff2") ? classpathBytes("/web/fonts/" + fname) : null;
+                if (font == null) {
+                    send(os, 404, "text/plain", "not found");
+                    return;
+                }
+                writeHead(os, 200, "font/woff2", font.length);
+                os.write(font);
+                os.flush();
+                break;
+            }
+
+            case "queue":
+                send(os, 200, "application/json", controller.buildQueueJson());
+                break;
+
+            case "musicPage": {
+                byte[] page = classpathBytes("/web/music.html");
+                if (page == null) {
+                    send(os, 404, "text/plain", "not found");
+                    return;
+                }
+                writeHead(os, 200, "text/html; charset=utf-8", page.length);
+                os.write(page);
+                os.flush();
+                break;
+            }
+
+            case "musicState":
+                send(os, 200, "application/json", music().stateJson());
+                break;
+
+            case "musicImg": {
+                byte[] img = music().image(params.get("u"));
+                if (img == null) {
+                    send(os, 404, "text/plain", "not found");
+                    return;
+                }
+                writeHead(os, 200, "image/jpeg", img.length);
+                os.write(img);
+                os.flush();
+                break;
+            }
+
+            case "musicConnect":
+            case "musicDisconnect": {
+                if (!method.equals("POST")) {
+                    send(os, 405, "text/plain", "method not allowed");
+                    return;
+                }
+                if (!configWriteAllowed(headers, boundPort)) {
+                    sendJson(os, 403, errorJson("cross-origin request rejected"));
+                    return;
+                }
+                if (routeKey.equals("musicDisconnect")) {
+                    music().disconnect();
+                    sendJson(os, 200, okJson("disconnected"));
+                    return;
+                }
+                long declared = parseLongLenient(headers.get("content-length"));
+                if (declared < 0 || declared > 4096) {
+                    sendJson(os, 413, errorJson("body missing or too large"));
+                    return;
+                }
+                try {
+                    JsonObject req = com.google.gson.JsonParser.parseString(
+                            new String(readAll(is, declared), UTF_8)).getAsJsonObject();
+                    music().connect(req.get("clientId").getAsString(), req.get("refreshToken").getAsString(),
+                            req.has("accessToken") ? req.get("accessToken").getAsString() : null,
+                            req.has("expiresIn") ? req.get("expiresIn").getAsLong() : 0);
+                    sendJson(os, 200, okJson("connected"));
+                } catch (Exception e) {
+                    sendJson(os, 400, errorJson("could not connect: " + e.getMessage()));
+                }
+                break;
+            }
+
+            case "art": {
+                byte[] page = classpathBytes("/web/art.html");
+                if (page == null) {
+                    send(os, 404, "text/plain", "not found");
+                    return;
+                }
+                writeHead(os, 200, "text/html; charset=utf-8", page.length);
+                os.write(page);
+                os.flush();
+                break;
+            }
+
+            case "simpleSettings": {
+                if (method.equals("GET")) {
+                    JsonObject o = new JsonObject();
+                    o.addProperty("ok", true);
+                    o.add("sources", WallSources.read(controller.uploadedDir().getParentFile()).toJson());
+                    sendJson(os, 200, o);
+                    return;
+                }
+                if (!method.equals("POST")) {
+                    send(os, 405, "text/plain", "method not allowed");
+                    return;
+                }
+                if (!configWriteAllowed(headers, boundPort)) {
+                    sendJson(os, 403, errorJson("cross-origin request rejected"));
+                    return;
+                }
+                handleSimpleSettings(headers, is, os);
+                break;
+            }
+
+            case "icon": {
+                byte[] icon = classpathBytes("/web/icon.png");
+                if (icon == null) {
+                    send(os, 404, "text/plain", "not found");
+                    return;
+                }
+                writeHead(os, 200, "image/png", icon.length);
+                os.write(icon);
+                os.flush();
+                break;
+            }
 
             case "state":
                 if (!method.equals("GET")) {
@@ -591,6 +782,10 @@ public class WebServer {
                 }
                 String name = urlDecode(decodePathSegment(path, "/delete"));
                 boolean ok = controller.deleteUploadedFile(name);
+                deleteThumbnails(name);
+                if (ok && WallSources.keptArtFor(name) != null) {
+                    syncWallEntries();
+                }
                 sendJson(os, ok ? 200 : 404, ok ? okJson("deleted") : errorJson("not found"));
                 break;
             }
@@ -734,6 +929,22 @@ public class WebServer {
                 }
                 handleUpload(headers, is, os);
                 break;
+
+            // The phone page's "Update the frame": no Trusted Network token, because the upload is
+            // only staged when it is signed by the same certificate as the installed app and has a
+            // newer versionCode (UpdateManager.stageUploadedApk); same-origin is still required.
+            case "phoneUpdate": {
+                if (!method.equals("POST")) {
+                    send(os, 405, "text/plain", "method not allowed");
+                    return;
+                }
+                if (!configWriteAllowed(headers, boundPort)) {
+                    sendJson(os, 403, errorJson("cross-origin request rejected"));
+                    return;
+                }
+                handleUpdateUpload(headers, is, os);
+                break;
+            }
 
             case "update": {
                 if (!method.equals("POST")) {
@@ -905,6 +1116,14 @@ public class WebServer {
             sendJson(os, 500, errorJson("cannot create upload dir"));
             return;
         }
+        long incomingBytes = parseLongLenient(headers.get("content-length"));
+        if (incomingBytes > 0 && uploadDir.getUsableSpace() - incomingBytes < LOW_SPACE_RESERVE_BYTES) {
+            GeneratedFilesJanitor.run(uploadDir.getParentFile());
+            if (uploadDir.getUsableSpace() - incomingBytes < LOW_SPACE_RESERVE_BYTES) {
+                sendJson(os, 507, errorJson("The frame is nearly out of space. Remove some photos and try again."));
+                return;
+            }
+        }
         // Unique per-request temp dir so parallel uploads cannot collide on part names or
         // clean each other's in-progress uploads.
         File incoming = new File(uploadDir, "incoming_" + System.nanoTime());
@@ -941,6 +1160,17 @@ public class WebServer {
                 }
             }
 
+            for (String name : saved) {
+                if (WallSources.keptArtFor(name) != null) {
+                    syncWallEntries();
+                    break;
+                }
+            }
+            try {
+                GeneratedFilesJanitor.run(uploadDir.getParentFile());
+            } catch (Throwable t) {
+                Log.w(TAG, "janitor after upload failed: " + t);
+            }
             JsonObject o = new JsonObject();
             o.addProperty("ok", true);
             JsonArray arr = new JsonArray();
@@ -1031,6 +1261,134 @@ public class WebServer {
      * {@code POST /config/import}). The body is read off the socket with a hard cap before the
      * controller touches it.
      */
+    private static final java.util.regex.Pattern CRON_FIELD =
+            java.util.regex.Pattern.compile("^[0-9*,/\\-]{1,40}$");
+
+    /**
+     * {@code POST /settings}: the phone page's narrow settings write. Changes only the slideshow
+     * interval, quiet hours and time zone, never a backend or credential, so it needs no
+     * configuration token: like an upload, a connected LAN is the perimeter. Body:
+     * {@code {"interval":5,"quietHours":["* 20-23,0-7 * * *"],"timeZone":"America/Los_Angeles"}},
+     * every field optional.
+     */
+    private void handleSimpleSettings(Map<String, String> headers, InputStream is, OutputStream os)
+            throws IOException {
+        long declared = parseLongLenient(headers.get("content-length"));
+        if (declared < 0 || declared > 4096) {
+            sendJson(os, 413, errorJson("settings body missing or too large"));
+            return;
+        }
+        JsonObject req;
+        JsonObject cfg;
+        try {
+            req = com.google.gson.JsonParser.parseString(new String(readAll(is, declared), UTF_8))
+                    .getAsJsonObject();
+            cfg = com.google.gson.JsonParser.parseString(controller.exportConfigurationJson())
+                    .getAsJsonObject();
+        } catch (Exception e) {
+            sendJson(os, 400, errorJson("expected a JSON object"));
+            return;
+        }
+        if (req.has("interval")) {
+            int interval;
+            try {
+                interval = req.get("interval").getAsInt();
+            } catch (Exception e) {
+                interval = -1;
+            }
+            if (interval < 1 || interval > 10080) {
+                sendJson(os, 400, errorJson("interval must be 1 to 10080 minutes"));
+                return;
+            }
+            cfg.addProperty("interval", interval);
+        }
+        if (req.has("quietHours")) {
+            JsonArray out = new JsonArray();
+            try {
+                JsonArray in = req.getAsJsonArray("quietHours");
+                if (in.size() > 8) {
+                    throw new IllegalArgumentException();
+                }
+                for (int i = 0; i < in.size(); i++) {
+                    String expr = in.get(i).getAsString().trim();
+                    String[] fields = expr.split("\\s+");
+                    if (fields.length != 5) {
+                        throw new IllegalArgumentException();
+                    }
+                    for (String f : fields) {
+                        if (!CRON_FIELD.matcher(f).matches()) {
+                            throw new IllegalArgumentException();
+                        }
+                    }
+                    out.add(expr);
+                }
+            } catch (Exception e) {
+                sendJson(os, 400, errorJson("quietHours must be a list of 5-field cron expressions"));
+                return;
+            }
+            cfg.add("quietHours", out);
+            // The legacy start/end mirror would otherwise resurrect a window the user just cleared.
+            cfg.addProperty("startQuietHour", -1);
+            cfg.addProperty("endQuietHour", -1);
+        }
+        if (req.has("name")) {
+            String saved;
+            try {
+                saved = controller.setDeviceName(req.get("name").getAsString());
+            } catch (Exception e) {
+                sendJson(os, 400, errorJson("could not save the name"));
+                return;
+            }
+            if (req.size() == 1) {   // name only: no configuration rewrite needed
+                JsonObject o = new JsonObject();
+                o.addProperty("ok", true);
+                o.addProperty("msg", "name saved");
+                o.addProperty("name", saved == null ? "" : saved);
+                sendJson(os, 200, o);
+                return;
+            }
+        }
+        if (req.has("backend")) {
+            String err = applyBackendChange(cfg, req.getAsJsonObject("backend"));
+            if (err != null) {
+                sendJson(os, 400, errorJson(err));
+                return;
+            }
+        }
+        if (req.has("sources")) {
+            File dir = controller.uploadedDir().getParentFile();
+            WallSources ws = WallSources.read(dir);
+            try {
+                ws.apply(req.getAsJsonObject("sources"));
+                ws.write(dir);
+            } catch (Exception e) {
+                sendJson(os, 400, errorJson("could not save sources"));
+                return;
+            }
+            applyWallEntries(cfg, ws);
+        }
+        if (req.has("timeZone")) {
+            String tz = req.get("timeZone").getAsString();
+            if (!java.util.Arrays.asList(java.util.TimeZone.getAvailableIDs()).contains(tz)) {
+                sendJson(os, 400, errorJson("unknown time zone"));
+                return;
+            }
+            cfg.addProperty("selectedTimeZoneId", tz);
+        }
+        String error;
+        try {
+            error = controller.importConfigurationJson(cfg.toString());
+        } catch (Exception e) {
+            Log.e(TAG, "settings import failed", e);
+            error = "internal error: " + e.getClass().getSimpleName();
+        }
+        if (error == null) {
+            sendJson(os, 200, okJson("settings saved"));
+        } else {
+            sendJson(os, 400, errorJson(error));
+        }
+    }
+
     private void handleConfigPost(Map<String, String> headers, InputStream is, OutputStream os)
             throws IOException {
         long declared = parseLongLenient(headers.get("content-length"));
@@ -1208,6 +1566,292 @@ public class WebServer {
 
     // --- rendering ---
 
+    // --- thumbnails for the phone page's gallery: ~270x480 JPEGs, cached beside the uploads ---
+
+    private File thumbDir() {
+        File parent = controller.uploadedDir().getParentFile();
+        return new File(parent, "thumbs");
+    }
+
+    static String thumbKey(String name) {
+        return Integer.toHexString(name.hashCode()) + "_" + Integer.toHexString(name.length());
+    }
+
+    /** A cached small JPEG for an uploaded still, or null when it cannot be made (videos, odd files). */
+    private File thumbnailFor(File src) {
+        String n = src.getName().toLowerCase(Locale.US);
+        if (!(n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".png") || n.endsWith(".gif")
+                || n.endsWith(".webp") || n.endsWith(".bmp"))) {
+            return null;
+        }
+        File dir = thumbDir();
+        File out = new File(dir, thumbKey(src.getName()) + "_" + Long.toHexString(src.lastModified()) + ".jpg");
+        if (out.isFile() && out.length() > 0) {
+            return out;
+        }
+        synchronized (WebServer.class) {
+            if (out.isFile() && out.length() > 0) {
+                return out;
+            }
+            if (!dir.isDirectory() && !dir.mkdirs()) {
+                return null;
+            }
+            android.graphics.Bitmap bmp = null;
+            try {
+                android.graphics.BitmapFactory.Options o = new android.graphics.BitmapFactory.Options();
+                o.inJustDecodeBounds = true;
+                android.graphics.BitmapFactory.decodeFile(src.getAbsolutePath(), o);
+                if (o.outWidth <= 0 || o.outHeight <= 0) {
+                    return null;
+                }
+                int sample = 1;
+                while (o.outWidth / (sample * 2) >= 270 && o.outHeight / (sample * 2) >= 270) {
+                    sample *= 2;
+                }
+                o = new android.graphics.BitmapFactory.Options();
+                o.inSampleSize = sample;
+                o.inPreferredConfig = android.graphics.Bitmap.Config.RGB_565;
+                bmp = android.graphics.BitmapFactory.decodeFile(src.getAbsolutePath(), o);
+                if (bmp == null) {
+                    return null;
+                }
+                File tmp = new File(dir, out.getName() + ".tmp");
+                java.io.FileOutputStream fos = new java.io.FileOutputStream(tmp);
+                try {
+                    bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, fos);
+                } finally {
+                    fos.close();
+                }
+                deleteThumbnails(src.getName());          // drop thumbnails of older versions
+                return tmp.renameTo(out) ? out : null;
+            } catch (Throwable t) {
+                Log.w(TAG, "thumbnail failed for " + src.getName() + ": " + t);
+                return null;
+            } finally {
+                if (bmp != null) {
+                    bmp.recycle();
+                }
+            }
+        }
+    }
+
+    private void deleteThumbnails(String name) {
+        File[] list = thumbDir().listFiles();
+        if (list == null) {
+            return;
+        }
+        String prefix = thumbKey(name) + "_";
+        for (File f : list) {
+            if (f.getName().startsWith(prefix)) {
+                //noinspection ResultOfMethodCallIgnored
+                f.delete();
+            }
+        }
+    }
+
+    /** Uploads are refused when they would leave less than this free on the frame. */
+    private static final long LOW_SPACE_RESERVE_BYTES = 150L * 1024 * 1024;
+
+    private static final int MAX_KEPT_ART = 24;
+
+    /**
+     * Rewrites the live-page entries in {@code cfg} from the wall sources and the kept-art records:
+     * the music page, N "surprise" art slots, and one entry per kept piece that replays that exact
+     * style and seed. All of them are web-page backends pointing at this frame's own pages.
+     */
+    private void applyWallEntries(JsonObject cfg, WallSources ws) {
+        JsonArray out = new JsonArray();
+        JsonArray backends = cfg.has("backends") && cfg.get("backends").isJsonArray()
+                ? cfg.getAsJsonArray("backends") : new JsonArray();
+        for (int i = 0; i < backends.size(); i++) {
+            JsonObject b = backends.get(i).getAsJsonObject();
+            String bid = b.has("id") ? b.get("id").getAsString() : "";
+            if (!bid.startsWith(WallSources.ART_ID_PREFIX) && !bid.equals(WallSources.MUSIC_ID)) {
+                out.add(b);
+            }
+        }
+        if (ws.music) {
+            out.add(webEntry(WallSources.MUSIC_ID, "http://127.0.0.1:" + boundPort + "/music/?style="
+                    + ws.musicStyle + "&lead=" + ws.musicLead));
+        }
+        if (ws.art) {
+            for (int i = 1; i <= ws.artCount; i++) {
+                out.add(webEntry(WallSources.ART_ID_PREFIX + i, "http://127.0.0.1:" + boundPort + "/art/?slot=" + i
+                        + (ws.artStyles.isEmpty() ? "" : "&styles=" + ws.artStyles)));
+            }
+            int n = 0;
+            java.util.Set<String> seen = new java.util.HashSet<String>();
+            for (UploadedMedia.FileInfo f : controller.listUploadedFiles()) {
+                WallSources.KeptArt k = WallSources.keptArtFor(f.name);
+                if (k != null && seen.add(k.backendId()) && n++ < MAX_KEPT_ART) {
+                    out.add(webEntry(k.backendId(), k.url(boundPort)));
+                }
+            }
+        }
+        cfg.add("backends", out);
+    }
+
+    /**
+     * The phone page's "More sources": add, remove or switch an Immich, Flickr or web-page backend.
+     * Credentials are write-only (the state JSON never returns them). The frame's own entries
+     * (local uploads, live art, live music) cannot be changed this way.
+     *
+     * @return an error for the page, or null when {@code cfg} was updated
+     */
+    static String applyBackendChange(JsonObject cfg, JsonObject change) {
+        String op = change.has("op") ? change.get("op").getAsString() : "";
+        JsonArray backends = cfg.has("backends") && cfg.get("backends").isJsonArray()
+                ? cfg.getAsJsonArray("backends") : new JsonArray();
+        if (op.equals("remove") || op.equals("enable")) {
+            String id = change.has("id") ? change.get("id").getAsString() : "";
+            if (reservedBackendId(id)) {
+                return "that source is managed by the frame";
+            }
+            for (int i = 0; i < backends.size(); i++) {
+                JsonObject b = backends.get(i).getAsJsonObject();
+                if (id.equals(b.has("id") ? b.get("id").getAsString() : null)) {
+                    if (op.equals("remove")) {
+                        backends.remove(i);
+                    } else {
+                        b.addProperty("enabled", change.has("enabled") && change.get("enabled").getAsBoolean());
+                    }
+                    cfg.add("backends", backends);
+                    return null;
+                }
+            }
+            return "no source with that id";
+        }
+        if (!op.equals("add")) {
+            return "unknown change";
+        }
+        String type = change.has("type") ? change.get("type").getAsString() : "";
+        JsonObject b = new JsonObject();
+        b.addProperty("type", type);
+        if (type.equals("immich")) {
+            String host = str(change, "host");
+            if (!isHttpUrl(host) || str(change, "userid").isEmpty() || str(change, "password").isEmpty()) {
+                return "Immich needs a server address (http:// or https://), an email and a password";
+            }
+            b.addProperty("host", host.endsWith("/") ? host : host + "/");
+            b.addProperty("userid", str(change, "userid"));
+            b.addProperty("password", str(change, "password"));
+            b.addProperty("apiVersion", "auto");
+        } else if (type.equals("flickr")) {
+            String key = str(change, "apiKey");
+            String src = str(change, "source");
+            if (!key.matches("[0-9a-fA-F]{32}") || !src.matches("https://(www\\.)?flickr\\.com/.{1,200}")) {
+                return "Flickr needs a 32-character API key and a flickr.com photostream or album address";
+            }
+            b.addProperty("apiKey", key);
+            b.addProperty("source", src);
+        } else if (type.equals("web")) {
+            String host = str(change, "host");
+            if (!isHttpUrl(host)) {
+                return "A web page needs an address starting with http:// or https://";
+            }
+            b.addProperty("host", host);
+        } else {
+            return "unknown source type";
+        }
+        int n = 1;
+        java.util.Set<String> ids = new java.util.HashSet<String>();
+        for (int i = 0; i < backends.size(); i++) {
+            JsonObject o = backends.get(i).getAsJsonObject();
+            if (o.has("id")) {
+                ids.add(o.get("id").getAsString());
+            }
+        }
+        while (ids.contains(type + "-" + n)) {
+            n++;
+        }
+        b.addProperty("id", type + "-" + n);
+        b.addProperty("enabled", true);
+        backends.add(b);
+        cfg.add("backends", backends);
+        return null;
+    }
+
+    static boolean reservedBackendId(String id) {
+        return id == null || id.isEmpty() || id.equals("local") || id.equals(WallSources.MUSIC_ID)
+                || id.startsWith(WallSources.ART_ID_PREFIX);
+    }
+
+    private static String str(JsonObject o, String k) {
+        return o.has(k) && !o.get(k).isJsonNull() ? o.get(k).getAsString().trim() : "";
+    }
+
+    private static boolean isHttpUrl(String s) {
+        return s != null && s.length() < 500 && s.matches("https?://[^\\s/$.?#][^\\s]*");
+    }
+
+    private static JsonObject webEntry(String id, String url) {
+        JsonObject b = new JsonObject();
+        b.addProperty("type", "web");
+        b.addProperty("id", id);
+        b.addProperty("host", url);
+        b.addProperty("enabled", true);
+        return b;
+    }
+
+    /** Re-derives the live entries after a kept-art record is added or removed. */
+    private void syncWallEntries() {
+        try {
+            JsonObject cfg = com.google.gson.JsonParser.parseString(controller.exportConfigurationJson())
+                    .getAsJsonObject();
+            applyWallEntries(cfg, WallSources.read(controller.uploadedDir().getParentFile()));
+            String err = controller.importConfigurationJson(cfg.toString());
+            if (err != null) {
+                Log.w(TAG, "wall entries not applied: " + err);
+            }
+        } catch (Throwable t) {
+            Log.w(TAG, "wall entries sync failed: " + t);
+        }
+    }
+
+    private MusicService music() {
+        return MusicService.get(controller.uploadedDir().getParentFile());
+    }
+
+    private static volatile String sMobilePage;
+
+    /** The phone-first landing page, bundled as a classpath resource; null if it is missing. */
+    private static String mobilePage() {
+        String page = sMobilePage;
+        if (page == null) {
+            byte[] b = classpathBytes("/web/mobile.html");
+            if (b == null) {
+                return null;
+            }
+            page = new String(b, UTF_8);
+            sMobilePage = page;
+        }
+        return page;
+    }
+
+    private static byte[] classpathBytes(String name) {
+        InputStream in = WebServer.class.getResourceAsStream(name);
+        if (in == null) {
+            return null;
+        }
+        try {
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) != -1) {
+                out.write(buf, 0, n);
+            }
+            return out.toByteArray();
+        } catch (IOException e) {
+            return null;
+        } finally {
+            try {
+                in.close();
+            } catch (IOException ignored) {
+                // best effort
+            }
+        }
+    }
+
     private String renderIndex() {
         File dir = controller.uploadedDir();
         UploadedMedia.FileInfo[] files = controller.listUploadedFiles();
@@ -1232,6 +1876,7 @@ public class WebServer {
             sb.append("<p><small>").append(escapeHtml(termsNotice)).append("</small></p>");
         }
         sb.append("<p>").append(escapeHtml(controller.appBuildSummary())).append("</p>");
+        sb.append("<p><a href=\"/\">&larr; simple view</a></p>");
         sb.append("<p><a href=\"/state\">state</a> · <a href=\"/logs\">logs</a> · ")
                 .append("<a href=\"/crashes\">crashes</a> · ")
                 .append("<a href=\"/reports\">reports</a> · ")
@@ -2156,6 +2801,15 @@ public class WebServer {
             o.addProperty("name", f.name);
             o.addProperty("size", f.size);
             o.addProperty("lastModified", f.lastModified);
+            WallSources.KeptArt kept = WallSources.keptArtFor(f.name);
+            if (kept != null) {
+                o.addProperty("assetKey", kept.backendId() + ":"
+                        + com.aphex3k.media.web.WebsiteBackend.webAssetIdFor(kept.url(boundPort)));
+                o.addProperty("artStyle", kept.style);
+                o.addProperty("artSeed", kept.seed);
+            } else {
+                o.addProperty("assetKey", "local:" + com.aphex3k.media.local.LocalMediaBackend.localAssetIdFor(f.name));
+            }
             arr.add(o);
         }
         return arr.toString();

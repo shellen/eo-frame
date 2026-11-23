@@ -34,7 +34,10 @@ import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
 import android.view.animation.AlphaAnimation;
+import android.net.http.SslError;
 import android.webkit.DownloadListener;
+import android.webkit.SslErrorHandler;
+import android.webkit.WebResourceResponse;
 import android.webkit.JsPromptResult;
 import android.webkit.JsResult;
 import android.webkit.WebChromeClient;
@@ -171,6 +174,11 @@ public class MainActivity extends AppCompatActivity implements BrightnessManager
     private String webUrlOnScreen = "";
     /** Set once the current load has painted, so a dead sub-resource is not a failed page. */
     private boolean webLoadProducedPaint;
+    /** Reloads this page has spent switching hosts to the modern-TLS fallback (capped per load). */
+    private int webTlsRetries;
+    /** Why the page in flight is likely to fail, if the browser has said so before the watchdog fires. */
+    @Nullable
+    private String webPendingReason;
     private Runnable webLoadWatchdogRunnable;
     /** Sticky: this ROM offered no usable WebView provider, so web assets are skipped from here on. */
     private boolean webViewUnavailable;
@@ -846,6 +854,7 @@ public class MainActivity extends AppCompatActivity implements BrightnessManager
         }
         this.webServer = new WebServer(this);
         this.webServer.start();
+        startMusicAndJanitor();
 
         // The configuration was loaded above, before UpdateManager.acquire() — and so, incidentally,
         // before the web server started below, which is the ordering this comment always claimed.
@@ -1928,6 +1937,39 @@ public class MainActivity extends AppCompatActivity implements BrightnessManager
         }
     }
 
+    /**
+     * Starts the frame's own Spotify poller (if connected) and tidies generated files. When playback
+     * starts or stops and the music takeover is on, move to or away from the music page right away
+     * instead of waiting for the next tick.
+     */
+    private void startMusicAndJanitor() {
+        final java.io.File files = getFilesDir();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    GeneratedFilesJanitor.run(files);
+                } catch (Throwable t) {
+                    Log.w(TAG, "janitor at start failed: " + t);
+                }
+            }
+        }, "janitor").start();
+        MusicService.get(files).setListener(new MusicService.Listener() {
+            @Override
+            public void onPlaybackChanged(boolean nowPlaying) {
+                WallSources s = WallSources.read(files);
+                if (s.music && s.musicTakeover) {
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            showNextImage();
+                        }
+                    });
+                }
+            }
+        });
+    }
+
     @Override
     public void showNextImage() {
         if (this.brightnessManager.getShouldTheScreenBeOn()) {
@@ -2710,6 +2752,8 @@ public class MainActivity extends AppCompatActivity implements BrightnessManager
             }
 
             webLoadProducedPaint = false;
+            webTlsRetries = 0;
+            webPendingReason = null;
             // The record exists <em>before</em> the surface becomes visible. A panel re-derived from the
             // view tree while the browser was showing but its record still named the previous page would
             // adopt that page as what is on screen, so the ownership has to be in place the moment the
@@ -2789,6 +2833,7 @@ public class MainActivity extends AppCompatActivity implements BrightnessManager
             settings.setSaveFormData(false);
             settings.setCacheMode(WebSettings.LOAD_DEFAULT);
             settings.setDefaultTextEncodingName("utf-8");
+            ModernWebFetcher.setUserAgent(settings.getUserAgentString());
 
             view.setBackgroundColor(Color.BLACK);
             view.setHorizontalScrollBarEnabled(false);
@@ -2835,6 +2880,27 @@ public class MainActivity extends AppCompatActivity implements BrightnessManager
             return !(lower.startsWith("http://") || lower.startsWith("https://"));
         }
 
+        /**
+         * KitKat's browser trusts only 2013's roots, so many current certificates (Let's Encrypt's
+         * among them) fail here. The host is moved to the modern-TLS fallback and the page reloaded;
+         * the error itself is never waved through.
+         */
+        @Override
+        public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
+            handler.cancel();
+            String failing = error == null ? null : error.getUrl();
+            Log.w(TAG, "web: certificate error " + (error == null ? "?" : error.getPrimaryError()) + " for " + failing);
+            if (!retryWithModernTls(view, failing)) {
+                webPendingReason = "the site's security certificate isn't trusted by the frame";
+            }
+        }
+
+        @Override
+        @SuppressWarnings("deprecation") // the request-object overload is API 21+
+        public WebResourceResponse shouldInterceptRequest(WebView view, String url) {
+            return ModernWebFetcher.intercept(url);
+        }
+
         @Override
         public void onPageFinished(WebView view, String url) {
             if (!Objects.equals(url, webUrlOnScreen)) {
@@ -2862,6 +2928,8 @@ public class MainActivity extends AppCompatActivity implements BrightnessManager
             // perfectly good page over a visibility accident.
             webLoadProducedPaint = true;
             cancelWebLoadWatchdog();
+            WebPageStatus.rendered(activeWebAssetId, System.currentTimeMillis());
+            probeForBlankPage(view, activeWebAssetId);
             if (view.getVisibility() != View.VISIBLE) {
                 Log.i(TAG, "onPageFinished: " + url + " rendered while the browser is hidden; retained only");
                 return;
@@ -2889,7 +2957,12 @@ public class MainActivity extends AppCompatActivity implements BrightnessManager
                         + " " + description + ") — page stays");
                 return;
             }
+            if (errorCode == ERROR_FAILED_SSL_HANDSHAKE && retryWithModernTls(view, failingUrl)) {
+                return;
+            }
             Log.w(TAG, "web: " + failingUrl + " failed (" + errorCode + "): " + description);
+            WebPageStatus.failed(activeWebAssetId, WebPageStatus.friendlyReason(errorCode, description),
+                    System.currentTimeMillis());
             noteDisplayFailure(activeWebAssetId, "page failed (" + errorCode + "): " + description + " for " + failingUrl);
             abandonWebPage();
         }
@@ -2916,6 +2989,63 @@ public class MainActivity extends AppCompatActivity implements BrightnessManager
             result.cancel();
             return true;
         }
+    }
+
+    /**
+     * Routes the failing request's host through {@link ModernWebFetcher} and reloads the page in
+     * flight. Capped at three hosts per load so a page cannot keep the frame reloading.
+     *
+     * @return true when a reload was started
+     */
+    private boolean retryWithModernTls(WebView view, @Nullable String failingUrl) {
+        if (webTlsRetries >= 3 || !webLoadOwnsSurfaces || webUrlOnScreen.isEmpty()
+                || !ModernWebFetcher.available()) {
+            return false;
+        }
+        String host = ModernWebFetcher.hostOf(failingUrl);
+        if (host == null || !ModernWebFetcher.routeHost(host)) {
+            return false;
+        }
+        webTlsRetries++;
+        Log.i(TAG, "web: " + host + " now loads through the modern-TLS fallback; reloading " + webUrlOnScreen);
+        final String page = webUrlOnScreen;
+        handler.post(() -> {
+            if (webView == view && page.equals(webUrlOnScreen)) {
+                view.stopLoading();
+                view.loadUrl(page);
+                if (!webLoadProducedPaint) {
+                    startWebLoadWatchdog();
+                }
+            }
+        });
+        return true;
+    }
+
+    /**
+     * A page whose code is too new for this browser often "finishes" with nothing drawn. A few
+     * seconds after it loads, count what is on it; an empty page gets a warning for the phone page.
+     */
+    private void probeForBlankPage(WebView view, String assetKey) {
+        handler.postDelayed(() -> {
+            if (webView != view || !assetKey.equals(activeWebAssetId)) {
+                return;
+            }
+            try {
+                view.evaluateJavascript("(function(){var b=document.body;if(!b)return 0;"
+                        + "return (b.innerText||'').replace(/\\s/g,'').length"
+                        + "+50*(b.getElementsByTagName('img').length+b.getElementsByTagName('canvas').length"
+                        + "+b.getElementsByTagName('svg').length+b.getElementsByTagName('video').length);})()",
+                        value -> {
+                            if ("0".equals(value) && assetKey.equals(activeWebAssetId)) {
+                                Log.w(TAG, "web: " + webUrlOnScreen + " loaded but shows nothing");
+                                WebPageStatus.warn(assetKey, "loaded but showed nothing; its code may be too new"
+                                        + " for the frame's browser", System.currentTimeMillis());
+                            }
+                        });
+            } catch (Throwable t) {
+                Log.w(TAG, "web: blank-page probe failed: " + t);
+            }
+        }, 6000L);
     }
 
     /**
@@ -2994,6 +3124,8 @@ public class MainActivity extends AppCompatActivity implements BrightnessManager
                 Log.w(TAG, "web: " + webUrlOnScreen + " showed nothing within "
                         + WEB_LOAD_TIMEOUT_MS / 1000L + "s; advancing to the next asset");
                 noteDisplayFailure(activeWebAssetId, "load timed out for " + webUrlOnScreen);
+                WebPageStatus.failed(activeWebAssetId, webPendingReason != null ? webPendingReason
+                        : "nothing showed within " + WEB_LOAD_TIMEOUT_MS / 1000L + " seconds", System.currentTimeMillis());
                 abandonWebPage();
             }
         };
@@ -5529,6 +5661,86 @@ public class MainActivity extends AppCompatActivity implements BrightnessManager
     }
 
     @Override
+    public String buildQueueJson() {
+        JsonObject o = new JsonObject();
+        // kept pieces: their live entry's id -> the record file that doubles as the thumbnail
+        java.util.Map<String, String> keptFiles = new java.util.HashMap<String, String>();
+        for (UploadedMedia.FileInfo f : listUploadedFiles()) {
+            WallSources.KeptArt k = WallSources.keptArtFor(f.name);
+            if (k != null) {
+                keptFiles.put(k.backendId(), f.name);
+            }
+        }
+        o.add("now", queueItem(mediaManager != null ? mediaManager.getCurrentAsset() : null, keptFiles));
+        JsonArray next = new JsonArray();
+        if (mediaManager != null) {
+            for (MediaAsset a : mediaManager.upcomingAssets()) {
+                next.add(queueItem(a, keptFiles));
+            }
+            o.addProperty("remainingInPass", mediaManager.rotationRemainingInPass());
+            o.addProperty("passTotal", mediaManager.upcomingPassTotal());
+        }
+        o.add("upNext", next);
+        int interval = settingsManager != null && settingsManager.getConfiguration() != null
+                ? Math.max(1, settingsManager.getConfiguration().interval) : 5;
+        o.addProperty("intervalMinutes", interval);
+        o.addProperty("lastChangeAtMs", lastRotationActivityMs);
+        o.addProperty("nextChangeAtMs", lastRotationActivityMs > 0 ? lastRotationActivityMs + interval * 60000L : 0);
+        o.addProperty("serverTime", System.currentTimeMillis());
+        o.addProperty("screenOn", brightnessManager != null && brightnessManager.getShouldTheScreenBeOn());
+        WallSources ws = WallSources.read(getFilesDir());
+        JsonObject music = new JsonObject();
+        music.addProperty("enabled", ws.music);
+        music.addProperty("takeover", ws.music && ws.musicTakeover);
+        music.addProperty("playing", MusicService.get(getFilesDir()).isPlaying());
+        o.add("music", music);
+        return o.toString();
+    }
+
+    private static JsonObject queueItem(@Nullable MediaAsset a, java.util.Map<String, String> keptFiles) {
+        if (a == null) {
+            return null;
+        }
+        JsonObject i = new JsonObject();
+        i.addProperty("key", a.key());
+        i.addProperty("backendId", a.backendId);
+        i.addProperty("type", mediaTypeName(a.type));
+        String kind;
+        String b = a.backendId == null ? "" : a.backendId;
+        if (b.equals(WallSources.MUSIC_ID)) {
+            kind = "music";
+        } else if (b.startsWith(WallSources.ART_ID_PREFIX + "keep-")) {
+            kind = "art";
+            // the kept piece's record file doubles as its thumbnail on the phone page
+            String record = keptFiles.get(b);
+            if (record != null) {
+                i.addProperty("name", record);
+            }
+        } else if (b.startsWith(WallSources.ART_ID_PREFIX)) {
+            kind = "art-live";
+        } else if (a.type == MediaType.WEB) {
+            kind = "web";
+            JsonObject shown = WebPageStatus.get(b);
+            if (shown != null) {
+                i.add("lastShown", shown);
+            }
+        } else if (b.startsWith("immich")) {
+            kind = "immich";
+        } else if (b.startsWith("flickr")) {
+            kind = "flickr";
+        } else if (a.originalFileName != null && a.localPath != null) {
+            kind = WallSources.kindOf(a.originalFileName);
+        } else {
+            kind = "other";
+        }
+        i.addProperty("kind", kind);
+        if (a.originalFileName != null) {
+            i.addProperty("name", a.originalFileName);
+        }
+        return i;
+    }
+
+    @Override
     public String buildStateJson() {
         JsonObject o = new JsonObject();
 
@@ -6218,6 +6430,26 @@ public class MainActivity extends AppCompatActivity implements BrightnessManager
             }
             return sendKeyCode(keyCode);
         }
+        // The phone page's Maintenance buttons (POST only). Both reuse the watchdog's own routines,
+        // on their own thread: a reboot goes through the frame's adbd and can take a moment.
+        if ("reboot".equals(action) || "restart-app".equals(action)) {
+            final boolean reboot = "reboot".equals(action);
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        if (reboot) {
+                            rebootDevice("requested from the phone page");
+                        } else {
+                            selfRestart();
+                        }
+                    } catch (Throwable t) {
+                        Log.w(TAG, "web " + (reboot ? "reboot" : "restart") + " failed: " + t);
+                    }
+                }
+            }, "web-maintenance").start();
+            return true;
+        }
         if ("watchdog".equals(action)) {
             // Debug builds only: rungs escalate over hours on real hardware, and the whole point of
             // the ladder is that nobody has to be there when it fires. level 1..5 forces one.
@@ -6249,10 +6481,14 @@ public class MainActivity extends AppCompatActivity implements BrightnessManager
                 // Debug-only: "the clip that misbehaves is #600 of 1000", which ?action=next cannot
                 // promise to reach. Checked and parked from this thread, which may read the pool's
                 // key set but never its records; the rotation worker picks the record up.
-                if (!BuildConfig.DEBUG || mediaManager == null) {
+                final String assetKey = params != null ? params.get("asset") : null;
+                // Release builds allow pinning an uploaded file (the phone page's "Show now");
+                // any other backend's asset stays debug-only.
+                boolean localAsset = assetKey != null
+                        && (assetKey.startsWith("local:") || assetKey.startsWith(WallSources.ART_ID_PREFIX));
+                if ((!BuildConfig.DEBUG && !localAsset) || mediaManager == null) {
                     return false;
                 }
-                final String assetKey = params != null ? params.get("asset") : null;
                 if (!mediaManager.queueAssetDisplay(assetKey)) {
                     return false;
                 }
@@ -6270,9 +6506,25 @@ public class MainActivity extends AppCompatActivity implements BrightnessManager
             case "screen":
                 task = this::toggleScreenOn;
                 break;
-            case "brightness":
-                task = () -> adjustMinimumBrightness("web");
+            case "brightness": {
+                String stepParam = params != null ? params.get("step") : null;
+                if (stepParam != null) {
+                    final int step;
+                    try {
+                        step = Integer.parseInt(stepParam.trim());
+                    } catch (NumberFormatException e) {
+                        return false;
+                    }
+                    task = () -> {
+                        this.brightnessManager.setShouldTheScreenBeOn(true);
+                        turnScreenOn();
+                        this.brightnessManager.setMinimumBrightnessStep(step, "web");
+                    };
+                } else {
+                    task = () -> adjustMinimumBrightness("web");
+                }
                 break;
+            }
             case "config":
                 task = this::showConfigurationUI;
                 break;

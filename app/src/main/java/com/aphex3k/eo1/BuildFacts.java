@@ -37,7 +37,7 @@ public final class BuildFacts {
      * than the keystore alone, so the value cannot drift from what actually signed a release.
      */
     public static final String RELEASE_CERT_SHA256 =
-            "a7cfbdda28c93aa270502b38e0da5f5bd1836e3a243f8cb270a9a17fcdd7deb8";
+            "47d2d2778bb9047ca8ee360e70deed2195c1e44d64f5f67d23f018727764ba94";
 
     private static final String UNKNOWN = "unknown";
 

@@ -82,6 +82,9 @@ public interface WebController {
     /** Builds the full {@code /state} JSON document. */
     String buildStateJson();
 
+    /** What's on now and what comes next, for the phone page's "Up next". */
+    String buildQueueJson();
+
     /**
      * One-line identity of the running build (version, variant, source commit, signing-key verdict)
      * for the page header. The certificate's own facts are only in {@code /state}: the server holds

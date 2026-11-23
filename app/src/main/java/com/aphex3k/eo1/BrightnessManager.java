@@ -334,6 +334,28 @@ public class BrightnessManager {
      * @return true when the new level was written down. A {@code false} means the panel changed and
      *         the next boot will not remember it, which the caller has to say out loud.
      */
+    /**
+     * Sets the level directly (the phone page's slider), clamped to the valid range. Same
+     * bookkeeping as {@link #raiseMinimumBrightnessStep}.
+     */
+    public boolean setMinimumBrightnessStep(int step, String via) {
+        final int base = steppedBase();
+        this.minimumBrightnessStep = step < MIN_STEP ? MIN_STEP : (step > MAX_STEP ? MAX_STEP : step);
+        this.minBrightness = floorBrightness(this.minimumBrightnessStep);
+        boolean durable = store != null && store.setMinimumBrightnessStep(this.minimumBrightnessStep);
+        this.stepAuthoritative = true;
+        this.changedFromStep = base;
+        this.changedToStep = this.minimumBrightnessStep;
+        this.changedVia = via;
+        this.changedAtMs = System.currentTimeMillis();
+        this.changedDurably = durable;
+        this.stepSource = via;
+        report("brightness step", this.changedFromStep + " -> " + this.changedToStep + " via " + via
+                + (durable ? "" : " (NOT PERSISTED)"));
+        notifyBrightnessChanged();
+        return durable;
+    }
+
     public boolean raiseMinimumBrightnessStep(String via) {
         final int base = steppedBase();
         this.minimumBrightnessStep = base >= MAX_STEP ? MIN_STEP : base + 1;

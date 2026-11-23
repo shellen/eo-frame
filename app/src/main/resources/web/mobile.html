@@ -1,0 +1,1841 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Frame">
+<meta name="theme-color" content="#f5f3ee" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0f0e" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="/icon.png">
+<link rel="icon" href="/icon.png">
+<title>Frame</title>
+<style>
+:root{
+  --bg:#f5f3ee;--ink:#161513;--muted:#77726a;--line:#d9d5cc;--fill:#eae6dd;
+  --accent:#d4472a;--good:#2f7d4f;--warn:#a8641c;--bad:#b3261e;
+  --serif:"Head",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0f0f0e;--ink:#efece5;--muted:#928c82;--line:#2b2926;--fill:#1b1a18;
+  --accent:#ff6a4a;--good:#6cc08b;--warn:#e3a35d;--bad:#e5534b;
+}}
+@font-face{font-family:"Head";src:url("/fonts/head-600.woff2") format("woff2");font-weight:600;font-display:swap}
+@font-face{font-family:"Head";src:url("/fonts/head-700.woff2") format("woff2");font-weight:700;font-display:swap}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg);color:var(--ink)}
+body{font:16px/1.4 var(--sans);max-width:640px;margin:0 auto;
+  padding:calc(env(safe-area-inset-top) + 14px) 18px calc(env(safe-area-inset-bottom) + 84px)}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;padding:0}
+a{color:inherit}
+
+/* type */
+.kicker,.sectionhead .count,.rowhead span,.qwhen,.info dt,.tabs button,.badge,.pill,.setlabel small,.xt small,.listrow small{
+  font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+h1{font:700 36px/1.02 var(--serif);letter-spacing:-.03em;margin:6px 0 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+h2{font:700 24px/1.1 var(--serif);letter-spacing:-.02em;margin:0}
+h3{font:600 17px/1.2 var(--sans);margin:0}
+
+/* masthead */
+header.mast{padding-bottom:14px;border-bottom:2px solid var(--ink);margin-bottom:18px}
+.kicker{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.dot{width:7px;height:7px;background:var(--muted);flex:none;display:inline-block}
+.dot.on{background:var(--good)}.dot.sleep{background:var(--warn)}.dot.off{background:var(--bad)}
+#sched:not(:empty):before{content:"· "}
+a.btn{text-decoration:none;display:inline-block}
+.offline{display:none;border:1px solid var(--bad);color:var(--bad);padding:10px 12px;font-size:14px;margin-bottom:14px}
+
+/* tabs */
+.tab{display:none}
+body[data-tab="now"] .tab[data-tab="now"],body[data-tab="library"] .tab[data-tab="library"],
+body[data-tab="extras"] .tab[data-tab="extras"],body[data-tab="frame"] .tab[data-tab="frame"],body.all .tab{display:block}
+body.all .tab{margin-bottom:34px}
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:8;background:var(--bg);border-top:1px solid var(--ink);
+  display:grid;grid-template-columns:repeat(4,1fr);max-width:640px;margin:0 auto;padding-bottom:env(safe-area-inset-bottom)}
+.tabs button{padding:16px 4px 15px;font-size:12px;color:var(--muted);border-top:3px solid transparent;margin-top:-2px}
+.tabs button.sel{color:var(--ink);border-top-color:var(--accent);font-weight:700}
+
+/* buttons */
+.btn,.primary{border:1px solid var(--ink);border-radius:6px;padding:11px 14px;font-weight:600;font-size:15px;text-align:center}
+.primary{background:var(--ink);color:var(--bg);width:100%;display:flex;align-items:center;justify-content:center;gap:8px}
+.primary svg{width:16px;height:16px}
+.primary[disabled],.btn[disabled]{opacity:.5}
+.btn:active,.primary:active,.chip:active{opacity:.7}
+.btn.small{padding:8px 12px;font-size:14px}
+.btn.go{background:var(--ink);color:var(--bg)}
+.btn.danger{border-color:var(--bad);color:var(--bad)}
+.sheet .btn.danger{background:var(--bad);color:#fff}
+.linkbtn{text-decoration:underline;font-size:14px;text-underline-offset:3px}
+.selbtn{font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;text-decoration:underline;text-underline-offset:3px}
+
+/* option groups */
+.seg{display:inline-flex;border:1px solid var(--ink);border-radius:6px;overflow:hidden}
+.seg button{padding:9px 12px;font-size:14px;color:var(--muted);border-left:1px solid var(--line)}
+.seg button:first-child{border-left:0}
+.seg button.sel{background:var(--ink);color:var(--bg)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);border-radius:6px;padding:8px 12px;font-size:14px}
+.chip.sel{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.switch{position:relative;width:46px;height:28px;flex:none;display:block}
+.switch input{opacity:0;width:0;height:0;position:absolute}
+.switch span{position:absolute;inset:0;border:1px solid var(--ink);border-radius:999px;transition:.15s}
+.switch span:before{content:"";position:absolute;width:20px;height:20px;left:3px;top:3px;background:var(--ink);border-radius:50%;transition:.15s}
+.switch input:checked+span{background:var(--ink)}
+.switch input:checked+span:before{transform:translateX(18px);background:var(--bg)}
+
+/* now */
+.nowpanel{display:flex;gap:16px;align-items:stretch}
+.nowpanel .thumb{width:118px;aspect-ratio:9/16;background:var(--fill) center/cover no-repeat;border:1px solid var(--ink);flex:none}
+.nowtext{min-width:0;flex:1;display:flex;flex-direction:column}
+.nowtext .name{font:700 26px/1.1 var(--serif);letter-spacing:-.02em;margin:6px 0 auto;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+.nowbtns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.nowbtns .btn.off{background:var(--ink);color:var(--bg)}
+.bright{display:flex;align-items:center;gap:12px;margin-top:16px;padding:12px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.bright .kicker{flex:none}
+.bright > span:last-child{font-family:var(--mono);font-size:12px;color:var(--muted);min-width:28px;text-align:right}
+input[type=range]{flex:1;-webkit-appearance:none;appearance:none;height:28px;background:transparent;margin:0}
+input[type=range]::-webkit-slider-runnable-track{height:2px;background:linear-gradient(to right,var(--ink) var(--pct,50%),var(--line) var(--pct,50%))}
+input[type=range]::-moz-range-track{height:2px;background:var(--line)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:var(--bg);border:2px solid var(--ink);margin-top:-10px}
+input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:var(--bg);border:2px solid var(--ink)}
+
+/* section heads */
+.sectionhead{display:flex;justify-content:space-between;align-items:baseline;margin:26px 0 10px}
+.tab > .sectionhead:first-child{margin-top:0}
+.upnote{font-size:13px;color:var(--muted);margin:-4px 0 10px;border-left:3px solid var(--accent);padding-left:10px}
+.upnote:empty{display:none}
+
+/* carousels and tiles */
+.carousel{display:flex;gap:8px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;
+  margin:0 -18px;padding:0 18px 4px;scroll-padding:0 18px;scrollbar-width:none}
+.carousel::-webkit-scrollbar{display:none}
+.carousel > *{scroll-snap-align:start;flex:none}
+.rows .row{margin-bottom:18px}
+.rowhead{display:flex;align-items:baseline;gap:8px;margin:0 0 8px;padding-top:10px;border-top:1px solid var(--line)}
+.rowhead b{font:600 16px var(--sans)}
+.pill{border:1px solid var(--line);padding:1px 6px}
+.rows .carousel .tile{width:84px}
+.tile{position:relative;aspect-ratio:9/16;overflow:hidden;background:var(--fill);padding:0;border-radius:3px;display:block}
+.tile img{width:100%;height:100%;object-fit:cover;display:block}
+.tile .badge{position:absolute;left:0;top:0;background:var(--ink);color:var(--bg);font-size:9px;padding:3px 5px}
+.tile .badge.cur{background:var(--accent);color:#fff}
+.tile .badge.warn{background:var(--warn);color:#fff}
+.tile .badge.gif{left:auto;right:0;top:auto;bottom:0}
+.tile .badge.offb{left:auto;right:0;top:auto;bottom:0;background:var(--muted)}
+.tile.off img{opacity:.35;filter:grayscale(1)}
+.tile .vid{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px;color:var(--muted);font-size:12px}
+.tile .vid svg{width:24px;height:24px}
+.tile.pending{opacity:.6}
+.tile .bar{position:absolute;left:0;bottom:0;height:3px;background:var(--accent);transition:width .2s}
+.tile .check{position:absolute;right:5px;top:5px;width:20px;height:20px;border:2px solid #fff;background:rgba(0,0,0,.3);display:none}
+.selecting .tile .check{display:block}
+.tile.picked .check{background:var(--accent);border-color:var(--accent)}
+.tile.picked .check:after{content:"";position:absolute;left:5px;top:1px;width:5px;height:10px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.tile.picked img{opacity:.7}
+.upnext{align-items:flex-start}
+.upnext .qi{width:96px;text-align:left;margin-top:4px}
+.upnext .qart{position:relative;aspect-ratio:9/16;overflow:hidden;background:var(--fill) center/cover no-repeat;border-radius:3px}
+.upnext .qi.now .qart{box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--accent)}
+.upnext .qi.now{margin:4px 6px 0 4px;width:150px}
+.upnext .qi.now .qname{font:700 17px/1.15 var(--serif);letter-spacing:-.01em;color:var(--ink);white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.upnext .qi.now.idle .qart{background:var(--fill)}
+.upnext .qart .ql{position:absolute;left:0;top:0;background:var(--accent);color:#fff;font:700 9px var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:3px 5px}
+.upnext .qart.live-art,.upnext .qart.live-music{background-color:var(--ink)}
+.upnext .qart .qicon{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--bg);
+  font:600 15px/1.15 var(--serif);padding:8px}
+.upnext .qwhen{margin-top:7px;color:var(--ink)}
+.upnext .qname{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.upnext .qmore{width:96px;aspect-ratio:9/16;border:1px dashed var(--line);display:flex;align-items:center;justify-content:center;
+  text-align:center;font-size:12px;color:var(--muted);padding:8px;border-radius:3px}
+.empty{padding:26px 8px;text-align:center;color:var(--muted);border:1px dashed var(--line)}
+.empty b{display:block;color:var(--ink);font:600 18px var(--serif);margin-bottom:4px}
+
+/* placeholders: live art, remote photos */
+.live-art{background:repeating-linear-gradient(135deg,var(--accent) 0 14px,#f0b23a 14px 28px,#2f6a8c 28px 42px,var(--bg) 42px 56px)!important;background-size:auto!important}
+.live-art .qicon,.nowpanel .thumb.live-art{color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.remote{background:var(--fill)!important}
+.remote .qicon,.nowpanel .thumb.remote{color:var(--ink)}
+.nowpanel .thumb{display:flex;align-items:flex-end;padding:8px;font:700 13px/1.2 var(--serif);color:#fff}
+.srcform{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.srcform input{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--ink);border-radius:6px;padding:9px 11px}
+.hint{font-size:13px;color:var(--muted);margin:2px 0 0}
+.srcitem{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+.srcitem b{display:block;font-weight:600}
+.srcitem small{display:block;color:var(--muted);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:62vw}
+.srcitem small.bad{color:var(--bad)}
+.srcitem small.warn{color:var(--warn,#b7791f)}
+.updbtns{display:flex;flex-direction:column;align-items:center;gap:10px;flex:none}
+.srcitem small.st{white-space:normal;overflow:visible}
+.srcitem>span:first-child{min-width:0}
+.qart.failed .qicon,.thumb.failed{color:var(--bad)}
+.upnext .qart.live-art .qicon,.upnext .qart.live-music .qicon{color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.7)}
+.srcitem .ctl{display:flex;align-items:center;gap:12px;flex:none}
+/* library */
+.addrow{display:flex;gap:8px;align-items:stretch;margin-bottom:6px}
+.addrow .primary{flex:1;width:auto}
+
+/* lists (settings rows, extras) */
+.listrow,.setrow{display:block;padding:14px 0;border-top:1px solid var(--line)}
+.listrow{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.listrow b,.xt b{display:block;font-weight:600;font-size:16px}
+.listrow small,.xt small{display:block;margin-top:3px;text-transform:none;letter-spacing:0;font-family:var(--sans);font-size:13px}
+.list{border-bottom:1px solid var(--line)}
+.setlabel{font-weight:600;margin-bottom:9px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.setlabel small{text-transform:none;letter-spacing:0;font-family:var(--sans);font-size:13px;font-weight:400}
+.hours{display:flex;gap:8px;align-items:center;margin-top:8px;font-size:14px;color:var(--muted)}
+.hours select,.namerow input{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--ink);border-radius:6px;padding:8px 10px}
+.hours select{flex:1}
+.namerow{display:flex;gap:8px;align-items:center}
+.namerow input{flex:1;min-width:0}
+.info{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;margin:0;font-size:14px}
+.info dd{margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
+.mrow b{display:block;font-weight:600}.mrow small{display:block;color:var(--muted);font-size:13px;margin-top:2px}
+.mrow .btn{flex:none;min-width:96px}
+
+/* extras */
+.xitem{border-top:1px solid var(--ink)}
+.xitem:last-of-type{border-bottom:1px solid var(--ink)}
+.xhead{display:flex;align-items:center;gap:12px;padding:14px 0}
+.xtoggle{flex:1;min-width:0;display:flex;align-items:center;gap:10px;text-align:left}
+.xt{flex:1;min-width:0}
+.xt b{font:700 21px/1.15 var(--serif);letter-spacing:-.015em}
+.chev{width:9px;height:9px;border:solid var(--ink);border-width:0 2px 2px 0;transform:rotate(45deg);transition:.15s;flex:none;margin:0 4px 4px}
+.xitem.open .chev{transform:rotate(225deg);margin:4px 4px 0}
+.xbody{display:none;padding:2px 0 18px}
+.xitem.open .xbody,body.all .xbody{display:block}
+.xbody p{margin:0 0 12px;color:var(--muted);font-size:14px}
+.xbody .seg{margin-bottom:12px;display:flex}
+.xbody .seg button{flex:1}
+.xbody .chips{margin-bottom:12px}
+.xbody .sub{font:600 14px var(--sans);margin:16px 0 8px;display:flex;justify-content:space-between;align-items:baseline}
+.xbody .sub small{font-weight:400;color:var(--muted)}
+.progress{font-size:13px;color:var(--muted);margin-top:8px}
+.progress:empty{display:none}
+.autorow{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:14px;padding:12px 0 0}
+.steps{margin:0 0 12px;padding-left:20px;font-size:14px}
+.steps li{margin-bottom:8px}
+code{font-family:var(--mono);font-size:12px;border:1px solid var(--line);padding:2px 5px;word-break:break-all}
+.who{display:flex;justify-content:flex-end;margin-bottom:6px}
+.artwrap{display:flex;gap:14px;align-items:flex-start;margin-bottom:12px}
+.artprev{width:108px;aspect-ratio:9/16;overflow:hidden;background:#000;flex:none;border:1px solid var(--ink)}
+.artprev iframe{width:540px;height:960px;border:0;transform:scale(.2);transform-origin:0 0;pointer-events:none}
+.artside{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
+.artside .seg{flex-direction:column;margin:0}
+.artside .seg button{border-left:0;border-top:1px solid var(--line);text-align:left}
+.artside .seg button:first-child{border-top:0}
+.artname{font:600 18px/1.2 var(--serif)}
+.chips.styles .chip{padding:6px 10px;font-size:13px}
+
+/* select bar, sheets, toast */
+.selbar{position:fixed;left:0;right:0;bottom:0;max-width:640px;margin:0 auto;background:var(--bg);border-top:1px solid var(--ink);
+  padding:12px 18px calc(env(safe-area-inset-bottom) + 12px);display:none;gap:8px;grid-template-columns:1fr 1fr;z-index:9}
+.selecting .selbar{display:grid}
+.selbar .btn.danger{background:var(--bad);color:#fff}
+.sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;z-index:10}
+.sheet{position:fixed;left:0;right:0;bottom:0;max-width:640px;margin:0 auto;background:var(--bg);border-top:2px solid var(--ink);
+  padding:18px 18px calc(env(safe-area-inset-bottom) + 18px);transform:translateY(100%);
+  transition:transform .22s ease,visibility 0s .22s;z-index:11;visibility:hidden}
+.sheet.open{transform:none;visibility:visible;transition:transform .22s ease}
+.sheet-bg.open{display:block}
+.sheet .preview{width:100%;max-height:55vh;object-fit:contain;background:#000;display:block}
+.livewrap{width:216px;height:384px;margin:0 auto;overflow:hidden;background:#000}
+.livewrap iframe{width:540px;height:960px;border:0;transform:scale(.4);transform-origin:0 0;pointer-events:none}
+.sheet .meta{color:var(--muted);font-size:13px;margin:10px 0;word-break:break-all}
+.sheet .warnbox{border:1px solid var(--warn);padding:10px;font-size:13px;margin-bottom:10px;white-space:pre-wrap}
+.sheet .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.sheet .row3{display:grid;grid-template-columns:1fr 1.3fr 1fr;gap:8px}
+.ctitle{font:600 20px/1.25 var(--serif);margin:2px 0 6px}
+.cbody{color:var(--muted);font-size:14px;margin:0 0 16px}
+.cbody:empty{display:none}
+.toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 12px);transform:translate(-50%,-60px);
+  background:var(--ink);color:var(--bg);padding:10px 14px;font-size:14px;opacity:0;border-radius:6px;
+  transition:all .2s;z-index:20;max-width:90vw;text-align:center}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+
+/* ---------- hand-drawn layer ---------- */
+@font-face{font-family:"Hand";src:url("/fonts/hand-400.woff2") format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"Hand";src:url("/fonts/hand-700.woff2") format("woff2");font-weight:700;font-display:swap}
+:root{--hand:"Hand","Comic Sans MS","Marker Felt",var(--sans);
+  --wob1:255px 15px 225px 15px/15px 225px 15px 255px;--wob2:15px 225px 15px 255px/255px 15px 225px 15px;--wob3:225px 12px 255px 18px/18px 255px 12px 225px}
+body.sketch h1,body.sketch h2,body.sketch .nowtext .name,body.sketch .xt b,body.sketch .artname,body.sketch .ctitle,body.sketch .empty b,body.sketch .upnext .qart .qicon{font-family:var(--hand);font-weight:700;letter-spacing:0}
+body.sketch h1{font-size:38px}body.sketch h2{font-size:26px}body.sketch .xt b{font-size:23px}body.sketch .nowtext .name{font-size:27px}
+body.sketch .btn,body.sketch .primary,body.sketch .chip,body.sketch .seg button,body.sketch .tabs button,body.sketch .selbtn,body.sketch .linkbtn,body.sketch .rowhead b,body.sketch .setlabel,body.sketch .listrow b,body.sketch .mrow b,body.sketch .sub{font-family:var(--hand);font-weight:700}
+body.sketch .btn,body.sketch .primary{font-size:18px;border-width:2px;border-radius:var(--wob1);padding:9px 16px}
+body.sketch .btn.small{font-size:16px;padding:6px 14px}
+body.sketch .nowbtns .btn{font-size:16px;padding:9px 4px;white-space:nowrap}
+body.sketch .nowbtns .btn:nth-child(2),body.sketch .sheet .row .btn:nth-child(2),body.sketch .mrow:nth-child(odd) .btn{border-radius:var(--wob2)}
+body.sketch .chip{font-size:16px;border-width:2px;border-color:var(--ink);border-radius:var(--wob3);padding:5px 13px}
+body.sketch .chip:nth-child(2n){border-radius:var(--wob1);transform:rotate(.6deg)}
+body.sketch .chip:nth-child(3n){border-radius:var(--wob2);transform:rotate(-.7deg)}
+body.sketch .seg{border-width:2px;border-radius:var(--wob2)}
+body.sketch .seg button{font-size:16px}
+body.sketch .artside .seg{border-radius:14px 6px 16px 8px/8px 16px 6px 14px}
+body.sketch .hours select,body.sketch .namerow input{border-width:2px;border-radius:var(--wob3);font-family:var(--hand);font-size:17px}
+body.sketch .switch span{border-width:2px;border-radius:30px 26px 32px 24px/26px 32px 24px 30px}
+body.sketch .switch span:before{top:2px;left:2px;border-radius:52% 48% 50% 50%/48% 52% 50% 50%}
+body.sketch .nowpanel .thumb,body.sketch .artprev{border-width:2px;border-radius:6px 10px 5px 12px/10px 5px 12px 6px}
+body.sketch .kicker,body.sketch .sectionhead .count,body.sketch .rowhead span,body.sketch .qwhen,body.sketch .info dt,body.sketch .setlabel small,body.sketch .pill{font-family:var(--hand);font-size:14px;letter-spacing:.01em;text-transform:none;font-weight:400}
+body.sketch .tabs button{font-size:17px;text-transform:none;letter-spacing:0;border-top:0;margin-top:0;padding:14px 4px 13px;position:relative}
+body.sketch .tabs{border-top:0}
+body.sketch .tabs:before{content:"";position:absolute;left:10px;right:10px;top:-3px;height:6px;background:var(--ink);-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 8' preserveAspectRatio='none'%3E%3Cpath d='M2 5 C 40 1, 70 7, 110 4 S 180 2, 220 5 S 300 7, 340 3 S 385 5, 398 4' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E") center/100% 100% no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 8' preserveAspectRatio='none'%3E%3Cpath d='M2 5 C 40 1, 70 7, 110 4 S 180 2, 220 5 S 300 7, 340 3 S 385 5, 398 4' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E") center/100% 100% no-repeat}
+body.sketch .tabs button.sel:after{content:"";position:absolute;left:22%;right:22%;bottom:9px;height:6px;background:var(--accent);-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 8' preserveAspectRatio='none'%3E%3Cpath d='M2 5 C 40 1, 70 7, 110 4 S 180 2, 220 5 S 300 7, 340 3 S 385 5, 398 4' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E") center/100% 100% no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 8' preserveAspectRatio='none'%3E%3Cpath d='M2 5 C 40 1, 70 7, 110 4 S 180 2, 220 5 S 300 7, 340 3 S 385 5, 398 4' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E") center/100% 100% no-repeat}
+body.sketch header.mast{border-bottom:0;position:relative;padding-bottom:16px}
+body.sketch header.mast:after{content:"";position:absolute;left:0;right:0;bottom:2px;height:7px;background:var(--ink);-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 8' preserveAspectRatio='none'%3E%3Cpath d='M2 5 C 40 1, 70 7, 110 4 S 180 2, 220 5 S 300 7, 340 3 S 385 5, 398 4' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E") center/100% 100% no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 8' preserveAspectRatio='none'%3E%3Cpath d='M2 5 C 40 1, 70 7, 110 4 S 180 2, 220 5 S 300 7, 340 3 S 385 5, 398 4' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E") center/100% 100% no-repeat}
+body.sketch .xitem{border-top:0;position:relative}
+body.sketch .xitem:before{content:"";position:absolute;left:0;right:0;top:-3px;height:6px;background:var(--ink);-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 8' preserveAspectRatio='none'%3E%3Cpath d='M2 5 C 40 1, 70 7, 110 4 S 180 2, 220 5 S 300 7, 340 3 S 385 5, 398 4' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E") center/100% 100% no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 8' preserveAspectRatio='none'%3E%3Cpath d='M2 5 C 40 1, 70 7, 110 4 S 180 2, 220 5 S 300 7, 340 3 S 385 5, 398 4' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E") center/100% 100% no-repeat}
+body.sketch .xitem:last-of-type{border-bottom:0}
+body.sketch .sheet{border-top:0}
+body.sketch .sheet:before{content:"";position:absolute;left:8px;right:8px;top:-3px;height:7px;background:var(--ink);-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 8' preserveAspectRatio='none'%3E%3Cpath d='M2 5 C 40 1, 70 7, 110 4 S 180 2, 220 5 S 300 7, 340 3 S 385 5, 398 4' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E") center/100% 100% no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 8' preserveAspectRatio='none'%3E%3Cpath d='M2 5 C 40 1, 70 7, 110 4 S 180 2, 220 5 S 300 7, 340 3 S 385 5, 398 4' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E") center/100% 100% no-repeat}
+body.sketch .upnote{border-left:0;padding-left:0;font-family:var(--hand);font-size:16px;color:var(--accent)}
+body.sketch .tile,body.sketch .upnext .qart,body.sketch .upnext .qmore{border-radius:5px 8px 4px 9px/8px 4px 9px 5px}
+body.sketch .upnext .qart .ql,body.sketch .tile .badge{font-family:var(--hand);font-size:12px;text-transform:none;letter-spacing:0;font-weight:700}
+body.sketch .toast{font-family:var(--hand);font-size:17px;border-radius:var(--wob1);padding:9px 18px}
+body.sketch .listrow small,body.sketch .xt small,body.sketch .mrow small{font-family:var(--sans)}
+body.sketch .selbtn{text-transform:none;letter-spacing:0;font-size:17px}
+body.sketch .xbody .sub{font-family:var(--hand);font-size:17px}
+body.sketch .autorow > span:first-child{font-family:var(--hand);font-size:16px}
+</style>
+</head>
+<body data-tab="now">
+<header class="mast">
+  <div class="kicker"><span class="dot" id="dot"></span><span id="statusText">Connecting…</span><span id="sched"></span></div>
+  <h1 id="title">Frame</h1>
+</header>
+
+<div class="offline" id="offline">Can’t reach the frame. Make sure your phone is on the same Wi-Fi.</div>
+
+<!-- ============ NOW ============ -->
+<section class="tab" data-tab="now">
+  <div class="nowbtns">
+    <button class="btn" id="btnNext">Next picture</button>
+    <button class="btn" id="btnScreen"><span id="screenLabel">Turn off</span></button>
+  </div>
+  <div class="bright" id="brightRow">
+    <span class="kicker">Brightness</span>
+    <input type="range" id="bright" min="1" max="8" step="1" value="5" aria-label="Brightness">
+    <span id="brightLabel"></span>
+  </div>
+
+  <div class="sectionhead"><h2>On the frame</h2><span class="count" id="upWhen"></span></div>
+  <div class="upnote" id="upNote"></div>
+  <div class="carousel upnext" id="upNext"></div>
+</section>
+
+<!-- ============ LIBRARY ============ -->
+<section class="tab" data-tab="library">
+  <div class="sectionhead"><h2>Library <span class="count" id="count"></span></h2><button class="selbtn" id="btnSelect" hidden>Select</button></div>
+  <div class="addrow">
+    <button class="primary" id="btnAdd">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="square"><path d="M12 5v14M5 12h14"/></svg>
+      Add photos
+    </button>
+    <div class="seg" role="group" aria-label="How photos fit the frame">
+      <button id="fitFill" class="sel">Fill</button>
+      <button id="fitWhole">Whole</button>
+    </div>
+  </div>
+  <input type="file" id="picker" accept="image/*,video/*" multiple hidden>
+  <div class="listrow" style="border-top:0">
+    <span><b>Show photos on the frame</b><small id="srcCountPhotos"></small></span>
+    <label class="switch"><input type="checkbox" data-src="photos"><span></span></label>
+  </div>
+  <div class="rows" id="grid"></div>
+  <div class="empty" id="empty" hidden><b>No photos yet</b>Tap “Add photos” to put your first picture on the wall.</div>
+</section>
+
+<!-- ============ EXTRAS ============ -->
+<section class="tab" data-tab="extras">
+  <div class="sectionhead"><h2>Extras</h2><span class="count">Switch on what you like</span></div>
+
+  <div class="xitem" id="artCard">
+    <div class="xhead">
+      <button class="xtoggle" aria-expanded="false"><span class="xt"><b>Generative art</b><small id="srcCountArt">Live, different every time</small></span><span class="chev"></span></button>
+      <label class="switch"><input type="checkbox" data-src="art"><span></span></label>
+    </div>
+    <div class="xbody">
+      <p>Animated pieces drawn live on the frame. Each time one comes up it picks a new style and seed.</p>
+      <div class="artwrap">
+        <div class="artprev"><iframe id="artFrame" title="Generative art preview" scrolling="no"></iframe></div>
+        <div class="artside">
+          <div class="artname" id="artName">Loading…</div>
+          <button class="btn" id="artShuffle">Shuffle</button>
+          <button class="btn" id="artKeep">Keep this one</button>
+        </div>
+      </div>
+      <div id="artOftenRow" hidden>
+        <div class="sub">How often</div>
+        <div class="chips" id="artOften">
+          <button class="chip" data-c="1">Now and then</button>
+          <button class="chip" data-c="3">Often</button>
+          <button class="chip" data-c="6">Mostly art</button>
+        </div>
+      </div>
+      <div class="sub">Styles on the frame <small id="artStylesNote">all</small></div>
+      <div class="chips styles" id="artStyles"></div>
+    </div>
+  </div>
+
+  <div class="xitem" id="spCard">
+    <div class="xhead">
+      <button class="xtoggle" aria-expanded="false"><span class="xt"><b>Live music</b><small id="spWho">Spotify, as it plays</small></span><span class="chev"></span></button>
+      <label class="switch"><input type="checkbox" data-src="music"><span></span></label>
+    </div>
+    <div class="xbody">
+      <div id="spSetup" hidden>
+        <p>Show what’s playing on Spotify, or the albums you’ve played lately. One-time setup, about 5 minutes:</p>
+        <ol class="steps">
+          <li>Open the <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">Spotify developer dashboard</a>, sign in, and tap <b>Create app</b> (any name, tick <b>Web API</b>).</li>
+          <li>Add this <b>Redirect URI</b>:<br><code id="spRedirectShow"></code> <button class="linkbtn" id="spCopy">Copy</button></li>
+          <li>Copy the app’s <b>Client ID</b> and paste it here:</li>
+        </ol>
+        <div class="namerow"><input id="spClient" placeholder="Client ID" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn small go" id="spConnect">Connect</button></div>
+        <p style="margin-top:10px"><button class="linkbtn" id="spRedirectEdit">Use a different redirect address</button></p>
+      </div>
+      <div id="spReady" hidden>
+        <div class="artwrap">
+          <div class="artprev"><iframe id="musicFrame" title="Live music preview" scrolling="no"></iframe></div>
+          <div class="artside">
+            <div class="seg" role="group" aria-label="Live style" id="musicStyles">
+              <button data-ms="kinetic">Kinetic Type</button>
+              <button data-ms="liquid">Liquid Light</button>
+              <button data-ms="wall">Album Wall</button>
+            </div>
+          </div>
+        </div>
+        <div class="sub">Lead with</div>
+        <div class="chips" id="musicLead">
+          <button class="chip" data-ml="artist">Artist</button>
+          <button class="chip" data-ml="track">Song</button>
+          <button class="chip" data-ml="date">Date</button>
+        </div>
+        <div class="autorow" style="padding-top:0"><span>Take over the frame while music plays</span><label class="switch"><input type="checkbox" id="musicTake"><span></span></label></div>
+
+        <div class="sub" style="margin-top:22px">Recently played still <small id="srcCountSpotify"></small></div>
+        <div class="seg" role="group" aria-label="Still style">
+          <button data-sp="grid">Album grid</button>
+          <button data-sp="anim">Animated grid</button>
+        </div>
+        <div class="chips" id="spSizes">
+          <button class="chip" data-n="9">9 albums</button>
+          <button class="chip" data-n="12">12 albums</button>
+          <button class="chip" data-n="20">20 albums</button>
+        </div>
+        <button class="primary" id="spGo">Put it on the frame</button>
+        <div class="progress" id="spStatus"></div>
+        <div class="autorow"><span>Keep the still in the rotation</span><label class="switch"><input type="checkbox" data-src="spotify"><span></span></label></div>
+        <div class="autorow" id="spAutoRow"><span>Refresh whenever I open this page</span><label class="switch"><input type="checkbox" id="spAuto"><span></span></label></div>
+        <div class="who" style="margin-top:14px"><button class="linkbtn" id="spDisconnect">Disconnect Spotify</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="xitem" id="nytCard">
+    <div class="xhead">
+      <button class="xtoggle" aria-expanded="false"><span class="xt"><b>The New York Times</b><small id="srcCountNyt">Today’s front page</small></span><span class="chev"></span></button>
+      <label class="switch"><input type="checkbox" data-src="nyt"><span></span></label>
+    </div>
+    <div class="xbody">
+      <p>Today’s print front page, made for the frame. Replaces yesterday’s.</p>
+      <div class="seg" role="group" aria-label="Front page style">
+        <button data-style="clean">Clean</button>
+        <button data-style="glitch">Glitch</button>
+        <button data-style="gif">Animated</button>
+      </div>
+      <button class="primary" id="nytGo">Put today’s front page on the frame</button>
+      <div class="progress" id="nytStatus"></div>
+      <div class="autorow"><span>Refresh whenever I open this page</span><label class="switch"><input type="checkbox" id="nytAuto"><span></span></label></div>
+    </div>
+  </div>
+  <div class="xitem" id="srcCard">
+    <div class="xhead">
+      <button class="xtoggle" aria-expanded="false"><span class="xt"><b>Photo services &amp; web pages</b><small id="srcSummary">Immich, Flickr or any web page</small></span><span class="chev"></span></button>
+    </div>
+    <div class="xbody">
+      <p>Pull pictures from your own Immich server or a Flickr stream, or show a web page now and then. They join the rotation alongside everything else.</p>
+      <div id="srcList"></div>
+      <div class="sub" style="margin-top:14px">Add a source</div>
+      <div class="seg" role="group" aria-label="Source type" id="srcType">
+        <button data-t="immich" class="sel">Immich</button>
+        <button data-t="flickr">Flickr</button>
+        <button data-t="web">Web page</button>
+      </div>
+      <div class="srcform" data-for="immich">
+        <input id="imHost" placeholder="Server address, e.g. http://192.168.1.20:2283" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <input id="imUser" placeholder="Account email" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <input id="imPass" type="password" placeholder="Password" autocomplete="new-password">
+        <p class="hint">Tip: make an Immich account just for the frame and share albums with it. The frame shows everything that account can see.</p>
+      </div>
+      <div class="srcform" data-for="flickr" hidden>
+        <input id="flKey" placeholder="Flickr API key (32 characters)" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <input id="flSrc" placeholder="Photostream or album, e.g. https://www.flickr.com/photos/name/" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <p class="hint">Get a free key at flickr.com/services/apps/create. Only public, safe photos are shown.</p>
+      </div>
+      <div class="srcform" data-for="web" hidden>
+        <input id="wbUrl" placeholder="Page address, e.g. http://192.168.1.20/dashboard/" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <p class="hint">Heads up: the frame’s browser is from 2013. Simple pages and home dashboards work. Most modern sites (anything built with React, Vue or similar) load blank. After the page comes up, this list says whether it showed.</p>
+      </div>
+      <button class="primary" id="srcAdd" style="margin-top:10px">Add source</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FRAME ============ -->
+<section class="tab" data-tab="frame">
+  <div class="sectionhead"><h2>Schedule</h2></div>
+  <div class="list">
+    <div class="setrow">
+      <div class="setlabel">Change picture every</div>
+      <div class="chips" id="intervalChips"></div>
+    </div>
+    <div class="setrow">
+      <div class="setlabel"><span>Sleep at night <small id="sleepSummary"></small></span>
+        <label class="switch"><input type="checkbox" id="sleepOn"><span></span></label></div>
+      <div class="hours" id="sleepHours" hidden>
+        <span>Off</span><select id="sleepStart" aria-label="Screen off at"></select><span>On</span><select id="sleepEnd" aria-label="Screen back on at"></select>
+      </div>
+    </div>
+    <div class="setrow" id="tzRow" hidden>
+      <div class="setlabel"><span>Time zone <small id="tzName"></small></span></div>
+      <button class="linkbtn" id="tzFix"></button>
+    </div>
+  </div>
+
+  <div class="sectionhead"><h2>This frame</h2></div>
+  <div class="list">
+    <div class="setrow">
+      <div class="setlabel">Name</div>
+      <div class="namerow"><input id="nameInput" maxlength="64" placeholder="e.g. Living room" autocomplete="off"><button class="btn small" id="nameSave">Save</button></div>
+    </div>
+    <div class="setrow">
+      <dl class="info" id="info"></dl>
+    </div>
+  </div>
+
+  <div class="sectionhead"><h2>Maintenance</h2></div>
+  <div class="list">
+    <div class="mrow"><span><b>Update the frame</b><small id="updStatus">Install a newer APK from this phone</small></span><button class="btn small" id="updPick">Choose APK…</button></div>
+    <div class="mrow" id="updStagedRow" hidden><span><b id="updStagedTitle">Update waiting</b><small id="updStagedWhy"></small></span><span class="updbtns"><button class="btn small go" id="updInstall">Install</button><button class="linkbtn" id="updDiscard">Discard</button></span></div>
+    <input type="file" id="updFile" accept=".apk,application/vnd.android.package-archive" hidden>
+    <div class="mrow"><span><b>Restart the app</b><small>Fixes a stuck picture. Takes a few seconds</small></span><button class="btn small" id="mRestart">Restart</button></div>
+    <div class="mrow"><span><b>Reboot the frame</b><small>A full restart. Back in about a minute</small></span><button class="btn small danger" id="mReboot">Reboot</button></div>
+    <div class="mrow"><span><b>Hand-drawn style</b><small>A sketchy look for this page, on this phone</small></span><label class="switch"><input type="checkbox" id="sketchOn"><span></span></label></div>
+    <div class="mrow"><span><b>Logs and diagnostics</b><small>The original technical page</small></span><a class="btn small" href="/advanced">Open</a></div>
+  </div>
+</section>
+
+<nav class="tabs" id="tabs" aria-label="Sections">
+  <button data-go="now">Now</button>
+  <button data-go="library">Library</button>
+  <button data-go="extras">Extras</button>
+  <button data-go="frame">Frame</button>
+</nav>
+
+<div class="selbar" id="selbar">
+  <button class="btn" id="selCancel">Cancel</button>
+  <button class="btn danger" id="selRemove" disabled>Remove</button>
+</div>
+
+<div class="sheet-bg" id="sheetBg"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true">
+  <div id="sheetMedia"></div>
+  <div class="meta" id="sheetMeta"></div>
+  <div class="warnbox" id="sheetWarn" hidden></div>
+  <div class="row3">
+    <button class="btn" id="sheetClose">Close</button>
+    <button class="btn go" id="sheetShow">Show now</button>
+    <button class="btn danger" id="sheetDelete">Remove</button>
+  </div>
+</div>
+<div class="sheet" id="confirmSheet" role="alertdialog" aria-modal="true">
+  <div class="ctitle" id="confirmText"></div>
+  <p class="cbody" id="confirmBody"></p>
+  <div class="row">
+    <button class="btn" id="confirmNo">Cancel</button>
+    <button class="btn danger" id="confirmYes">Remove</button>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+  var W = 1080, H = 1920;                       // the EO panel, portrait
+  var $ = function(id){ return document.getElementById(id); };
+  // ---------- tabs and expandable extras ----------
+  function showTab(t){
+    document.body.setAttribute("data-tab", t);
+    Array.prototype.forEach.call(document.querySelectorAll("#tabs button"), function(b){ b.classList.toggle("sel", b.dataset.go === t); });
+    try { localStorage.setItem("eoTab", t); } catch(e) {}
+    window.scrollTo(0, 0);
+  }
+  function openExtra(id, open){
+    var x = $(id); if (!x) return;
+    var on = open === undefined ? !x.classList.contains("open") : open;
+    x.classList.toggle("open", on);
+    x.querySelector(".xtoggle").setAttribute("aria-expanded", on ? "true" : "false");
+  }
+  Array.prototype.forEach.call(document.querySelectorAll("#tabs button"), function(b){ b.onclick = function(){ showTab(b.dataset.go); }; });
+  Array.prototype.forEach.call(document.querySelectorAll(".xitem"), function(x){ x.querySelector(".xtoggle").onclick = function(){ openExtra(x.id); }; });
+  (function(){
+    var t = "now"; try { t = localStorage.getItem("eoTab") || "now"; if (localStorage.getItem("eoAll") === "1") document.body.classList.add("all"); } catch(e) {}
+    if (/spotify_code|[?&]code=/.test(location.hash + location.search)) { t = "extras"; }
+    showTab(/^(now|library|extras|frame)$/.test(t) ? t : "now");
+  })();
+
+  var state = null, files = [], pending = [], sheetName = null, selecting = false, picked = {};
+  var fit = "fill";
+  try { fit = localStorage.getItem("fit") || "fill"; } catch(e) {}
+
+  var VIDEO = /\.(mp4|mov|m4v|mkv|avi|ts|webm|3gp|mpg|mpeg)$/i;
+  var IMAGE = /\.(jpe?g|png|gif|webp|bmp)$/i;
+
+  function toast(msg, ms){
+    var t = $("toast"); t.textContent = msg; t.classList.add("show");
+    clearTimeout(toast._t); toast._t = setTimeout(function(){ t.classList.remove("show"); }, ms || 2600);
+  }
+  function api(path, opts){
+    return fetch(path, Object.assign({cache:"no-store"}, opts || {})).then(function(r){
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    });
+  }
+  function fileUrl(n){ return "/files/" + encodeURIComponent(n); }
+  // What people see instead of file names.
+  function friendlyName(n){
+    if (!n) return "";
+    if (/^spotify-grid-/.test(n)) return "Spotify · Recent albums";
+    if (/^spotify-nowplaying-/.test(n)) return "Spotify · Now playing";
+    if (/^art-/.test(n)) {
+      var am = /^art-(.+)-[a-z0-9]{1,8}\.[^.]+$/.exec(n), sid = am ? am[1] : "";
+      var slug = function(t){ return String(t).toLowerCase().replace(/[^a-z0-9]+/g, "-"); };
+      var hit = (typeof artStyleList !== "undefined" ? artStyleList : []).filter(function(x){ return x.id === sid || slug(x.name) === sid; })[0];
+      var label = hit ? hit.name : sid.replace(/-/g, " ").replace(/\b\w/g, function(c){ return c.toUpperCase(); });
+      return "Kept art" + (label ? " · " + label : "");
+    }
+    if (/^nyt-frontpage-/.test(n)) { var m = /(\d{4})-(\d\d)-(\d\d)/.exec(n); return "NYT front page" + (m ? " · " + new Date(+m[1], m[2] - 1, +m[3]).toLocaleDateString(undefined, {month: "short", day: "numeric"}) : ""); }
+    return n.replace(/\.[^.]+$/, "").replace(/_[a-z0-9]{6,9}$/, "").replace(/[_-]+/g, " ").trim() || n;
+  }
+  function thumbUrl(n, v){ return "/thumb/" + encodeURIComponent(n) + (v ? "?v=" + v : ""); }
+  // Thumbnails load as tiles scroll into view (our own observer, not loading="lazy").
+  var io = "IntersectionObserver" in window ? new IntersectionObserver(function(entries){
+    entries.forEach(function(e){ if (e.isIntersecting) { loadThumb(e.target); io.unobserve(e.target); } });
+  }, {rootMargin: "300px"}) : null;
+  function loadThumb(img){
+    if (img.dataset.loaded) return; img.dataset.loaded = "1";
+    img.onerror = function(){ if (img.dataset.full && img.src.indexOf("/files/") < 0) img.src = img.dataset.full; };
+    img.src = img.dataset.src;
+  }
+
+  // ---------- status ----------
+  function hourName(h){ h = ((h % 24) + 24) % 24; var ap = h < 12 ? "am" : "pm"; var x = h % 12 || 12; return x + ap; }
+  function friendlyQuiet(list){
+    if (!list || !list.length) return "";
+    var m = /^\*\s+([\d,\-]+)\s+\*\s+\*\s+\*$/.exec((list[0] || "").trim());
+    if (!m || list.length > 1) return "Sleeps on a schedule";
+    var hours = {};
+    m[1].split(",").forEach(function(p){
+      var r = p.split("-").map(Number), a = r[0], b = r.length > 1 ? r[1] : r[0];
+      for (var h = a; h <= b; h++) hours[h] = 1;
+    });
+    var start = -1;
+    for (var i = 0; i < 24; i++) if (hours[i] && !hours[(i + 23) % 24]) { start = i; break; }
+    if (start < 0) return "Sleeps all day";
+    var end = start; while (hours[(end + 1) % 24] && (end + 1) % 24 !== start) end = (end + 1) % 24;
+    return "Sleeps " + hourName(start) + "–" + hourName(end + 1);
+  }
+  function renderState(){
+    var s = state || {};
+    var dev = s.device || {}, media = s.media || {}, br = s.brightness || {}, cfg = s.config || {};
+    var name = dev.name || (dev.platform ? dev.platform.toUpperCase() : "") || "Frame";
+    $("title").textContent = name;
+    document.title = name;
+    var on = media.screenOn !== false && br.screenOn !== false;
+    var quiet = friendlyQuiet(cfg.quietHours);
+    $("dot").className = "dot " + (on ? "on" : "sleep");
+    var every = cfg.intervalMinutes ? "Every " + intervalLabel(cfg.intervalMinutes) : "";
+    $("statusText").textContent = on ? (every || "On") : "Screen off";
+    $("sched").textContent = quiet;
+    $("btnScreen").classList.toggle("off", !on); $("screenLabel").textContent = on ? "Turn off" : "Turn on";
+    $("btnScreen").setAttribute("aria-label", on ? "Turn the screen off" : "Turn the screen on");
+    $("brightRow").hidden = br.supported === false;
+    if (typeof br.step === "number" && !brightDragging && Date.now() - brightSetAt > 4000) { $("bright").value = br.step + 1; $("brightLabel").textContent = (br.step + 1) + "/8"; brightFill(); }
+    renderInfo(s); renderUpdate(s);
+    var cur = media.current || {};
+    // Fallback until /queue answers: describe the current asset from /state.
+    if (!queue || !queue.now) {
+      var b0 = cur.backendId || "", nm0 = cur.originalFileName || "";
+      renderNow(cur.key ? {backendId: b0, name: nm0 || undefined,
+        kind: b0 === "music-1" ? "music" : /^art-keep-/.test(b0) ? "art" : /^art-/.test(b0) ? "art-live" : cur.type === "web" ? "web" : b0 === "local" ? kindOf(nm0) : b0.replace(/-\d+$/, "")} : null, on);
+    }
+    renderSettings(cfg); renderMoreSources(cfg); if (queue) renderQueue();
+  }
+  function markCurrent(n){
+    Array.prototype.forEach.call(document.querySelectorAll(".tile"), function(t){
+      var b = t.querySelector(".badge.cur");
+      if (t.dataset.name === n && !b) { b = document.createElement("span"); b.className = "badge cur"; b.textContent = "Showing"; t.appendChild(b); }
+      if (t.dataset.name !== n && b) b.remove();
+    });
+  }
+  function refreshState(){
+    return api("/state").then(function(j){ state = j; $("offline").style.display = "none"; renderState(); })
+      .catch(function(){ $("offline").style.display = "block"; $("dot").className = "dot off"; $("statusText").textContent = "Offline"; });
+  }
+
+  // ---------- gallery ----------
+  function refreshFiles(){
+    return api("/files").then(function(list){
+      var warn = {};
+      list.forEach(function(f){ var m = /^(.*)\.incompat\.txt$/i.exec(f.name); if (m) warn[m[1]] = f.name; });
+      files = list.filter(function(f){ return !/\.txt$/i.test(f.name) && !/^incoming_/.test(f.name); })
+                  .map(function(f){ f.warn = warn[f.name] || null; return f; })
+                  .sort(function(a, b){ return (b.lastModified || 0) - (a.lastModified || 0); });
+      renderGrid();
+      renderState();
+    }).catch(function(){});
+  }
+  function makeTile(f){
+    var t = document.createElement("button");
+    t.className = "tile"; t.dataset.name = f.name; t.setAttribute("aria-label", friendlyName(f.name));
+    if (VIDEO.test(f.name)) {
+      t.innerHTML = '<div class="vid"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>Video</div>';
+    } else {
+      var img = document.createElement("img"); img.alt = "";
+      img.dataset.src = thumbUrl(f.name, f.lastModified || 0); img.dataset.full = fileUrl(f.name);
+      t.appendChild(img); if (io) io.observe(img); else loadThumb(img);
+    }
+    if (f.warn) { var b = document.createElement("span"); b.className = "badge warn"; b.textContent = "Can’t show"; t.appendChild(b); }
+    else if (/\.gif$/i.test(f.name)) { var gb = document.createElement("span"); gb.className = "badge gif"; gb.textContent = "GIF"; t.appendChild(gb); }
+    var ck = document.createElement("span"); ck.className = "check"; t.appendChild(ck);
+    if (picked[f.name]) t.classList.add("picked");
+    t.onclick = function(){
+      if (selecting) { picked[f.name] = !picked[f.name]; if (!picked[f.name]) delete picked[f.name]; t.classList.toggle("picked", !!picked[f.name]); renderSelbar(); }
+      else openSheet(f);
+    };
+    return t;
+  }
+  // One horizontal row per source, so a big library doesn't become a long scroll.
+  var ROWS = [
+    {id: "photos", title: "Photos", kinds: ["photos"]},
+    {id: "art", title: "Kept art", kinds: ["art"]},
+    {id: "extras", title: "NYT & Spotify", kinds: ["nyt", "spotify"]}
+  ];
+  function renderGrid(){
+    var g = $("grid"); g.innerHTML = "";
+    ROWS.forEach(function(r){
+      var items = files.filter(function(f){ return r.kinds.indexOf(kindOf(f.name)) >= 0; });
+      var pend = r.id === "photos" ? pending : [];
+      if (!items.length && !pend.length) return;
+      var row = document.createElement("div"); row.className = "row";
+      var head = document.createElement("div"); head.className = "rowhead";
+      var off = r.kinds.every(function(k){ return sources && sources[k] === false; });
+      head.innerHTML = "<b></b><span></span>" + (off ? '<span class="pill">Off</span>' : "");
+      head.firstChild.textContent = r.title; head.children[1].textContent = items.length + pend.length;
+      var car = document.createElement("div"); car.className = "carousel";
+      pend.forEach(function(p){ car.appendChild(p.el); });
+      items.forEach(function(f){ car.appendChild(makeTile(f)); });
+      row.appendChild(head); row.appendChild(car); g.appendChild(row);
+    });
+    var n = files.length;
+    $("count").textContent = n ? "· " + n : "";
+    $("btnSelect").hidden = n === 0;
+    if (typeof renderSources === "function" && sources) setTimeout(renderSources, 0);
+    if (n === 0 && selecting) setSelecting(false);
+    $("empty").hidden = n > 0 || pending.length > 0;
+  }
+
+  // ---------- up next ----------
+  var queue = null;
+  function clock(ms){ return new Date(ms).toLocaleTimeString(undefined, {hour: "numeric", minute: "2-digit"}); }
+  // One description for anything the frame can show: a name people can read, and art for it.
+  var LOCAL_KINDS = {photos: 1, art: 1, nyt: 1, spotify: 1};
+  var WEB_HOSTS = {};
+  function describe(item){
+    var k = item.kind || "", nm = item.name || "";
+    if (k === "music") {
+      var cur = (music && (music.current || music.last)) || null;
+      return {name: "Live music" + (cur ? " · " + cur.artist : ""), img: cur && cur.art ? musicImg(cur.art) : "", cls: "live-music", label: "Live music"};
+    }
+    if (k === "art-live") return {name: "Generative art · a new piece", img: "", cls: "live-art", label: "Generative art"};
+    if (k === "art" && !nm) return {name: "Kept art", img: "", cls: "live-art", label: "Kept art"};
+    if (LOCAL_KINDS[k] && nm) return {name: friendlyName(nm), img: VIDEO.test(nm) ? "" : thumbUrl(nm), cls: "", label: VIDEO.test(nm) ? "Video" : ""};
+    if (k === "web") {
+      var host = (WEB_HOSTS[item.backendId] || "").replace(/^https?:\/\//, "").replace(/\/$/, "");
+      var bad = item.lastShown && item.lastShown.ok === false;
+      return {name: "Web page" + (host ? " · " + host : "") + (bad ? " (didn’t load last time)" : ""), img: "", cls: "remote" + (bad ? " failed" : ""), label: bad ? "Didn’t load" : "Web page"};
+    }
+    var src = k === "immich" ? "Immich" : k === "flickr" ? "Flickr" : "Photo";
+    return {name: src + (nm ? " · " + nm.replace(/\.[^.]+$/, "") : ""), img: "", cls: "remote", label: src};
+  }
+  // The first slot of the "On the frame" row is the preview of what's showing.
+  function nowTile(item, on){
+    if (item) return queueTile(item, on ? "Showing" : "Screen off", true);
+    var b = document.createElement("div"); b.className = "qi now idle";
+    b.innerHTML = '<div class="qart"><div class="qicon"></div></div><div class="qwhen"></div><div class="qname"></div>';
+    b.querySelector(".qicon").textContent = on ? "…" : "Off";
+    b.querySelector(".qwhen").textContent = on ? "Starting" : "Screen off";
+    b.querySelector(".qname").textContent = on ? "Nothing yet" : "Sleeping";
+    return b;
+  }
+  function renderNow(item, on){
+    markCurrent(item && item.name || "");
+    if (queue) return;   // renderQueue owns the row once /queue answers
+    var box = $("upNext"); box.innerHTML = "";
+    box.appendChild(nowTile(item, on));
+  }
+  function queueTile(item, label, isNow){
+    var b = document.createElement("button"); b.className = "qi" + (isNow ? " now" : "");
+    var art = document.createElement("div"); art.className = "qart";
+    var d = describe(item), name = d.name;
+    if (d.cls) art.className += " " + d.cls;
+    if (d.img) art.style.backgroundImage = 'url("' + d.img + '")'; else art.innerHTML = '<div class="qicon"></div>', art.firstChild.textContent = d.label;
+    if (isNow) { var l = document.createElement("div"); l.className = "ql"; l.textContent = "On now"; art.appendChild(l); }
+    var w = document.createElement("div"); w.className = "qwhen"; w.textContent = label;
+    var nm = document.createElement("div"); nm.className = "qname"; nm.textContent = name;
+    b.appendChild(art); b.appendChild(w); b.appendChild(nm);
+    var f = item.name && files.filter(function(x){ return x.name === item.name; })[0];
+    b.onclick = function(){ if (f) openSheet(f); else if (item.kind === "art-live" || item.kind === "art") { showTab("extras"); openExtra("artCard", true); } else if (item.kind === "music") { showTab("extras"); openExtra("spCard", true); } else if (item.kind === "immich" || item.kind === "flickr" || item.kind === "web") { showTab("extras"); openExtra("srcCard", true); } };
+    return b;
+  }
+  function renderQueue(){
+    var box = $("upNext"); box.innerHTML = "";
+    if (!queue) return;
+    var q = queue, step = (q.intervalMinutes || 5) * 60000;
+    // use the frame's clock for "in N min", so a phone with a skewed clock still reads right
+    var now = q.serverTime || Date.now(), off = Date.now() - now;
+    var base = q.nextChangeAtMs && q.nextChangeAtMs > now - 30000 ? q.nextChangeAtMs : now + step;
+    var notes = [];
+    if (q.music && q.music.takeover && q.music.playing) notes.push("Live music is holding the screen while Spotify plays. The rotation resumes when it stops.");
+    if (!q.screenOn) notes.push("The screen is off right now.");
+    $("upNote").textContent = notes.join(" ");
+    var mins = Math.max(0, Math.round((base - now) / 60000));
+    $("upWhen").textContent = "every " + intervalLabel(q.intervalMinutes || 5);
+    markCurrent(q.now && q.now.name || "");
+    box.appendChild(nowTile(q.now || null, q.screenOn !== false));
+    (q.upNext || []).forEach(function(it, i){
+      var label = i === 0 ? (mins <= 0 ? "Next · soon" : "Next · " + mins + " min") : clock(base + i * step + off);
+      box.appendChild(queueTile(it, label, false));
+    });
+    var shown = (q.upNext || []).length, rest = (q.remainingInPass || 0) - shown;
+    var more = document.createElement("div"); more.className = "qmore";
+    more.textContent = rest > 0 ? "+" + rest + " more, then a fresh shuffle" : "Then everything reshuffles for the next pass";
+    box.appendChild(more);
+  }
+  function refreshQueue(){
+    return api("/queue").then(function(j){ queue = j; renderQueue(); }).catch(function(){});
+  }
+
+  // ---------- sheet ----------
+  function openSheet(f){
+    sheetName = f.name;
+    var m = $("sheetMedia"); m.innerHTML = "";
+    if (f.artStyle) {
+      // a kept piece replays live: same style, same seed
+      var wrap = document.createElement("div"); wrap.className = "livewrap";
+      var fr = document.createElement("iframe"); fr.setAttribute("scrolling", "no"); fr.title = "Kept art preview";
+      fr.src = "/art/?style=" + encodeURIComponent(f.artStyle) + "&seed=" + f.artSeed + "&preview=1";
+      wrap.appendChild(fr); m.appendChild(wrap);
+    } else if (VIDEO.test(f.name)) {
+      var v = document.createElement("video"); v.className = "preview"; v.src = fileUrl(f.name);
+      v.muted = true; v.playsInline = true; v.controls = true; m.appendChild(v);
+    } else {
+      var i = document.createElement("img"); i.className = "preview"; i.src = fileUrl(f.name); m.appendChild(i);
+    }
+    $("sheetMeta").textContent = f.artStyle ? friendlyName(f.name) + " · replays live on the frame" : friendlyName(f.name) + " · " + Math.max(1, Math.round(f.size / 1024)) + " KB";
+    var w = $("sheetWarn"); w.hidden = true;
+    if (f.warn) {
+      fetch(fileUrl(f.warn)).then(function(r){ return r.text(); }).then(function(txt){
+        w.textContent = "The frame can’t display this file:\n" + txt.split("\n").slice(0, 6).join("\n"); w.hidden = false;
+      }).catch(function(){});
+    }
+    $("sheetBg").classList.add("open"); $("sheet").classList.add("open");
+  }
+  function closeSheet(){
+    $("sheetBg").classList.remove("open"); $("sheet").classList.remove("open");
+    var v = $("sheetMedia").querySelector("video"); if (v) v.pause();
+    var lf = $("sheetMedia").querySelector("iframe"); if (lf) lf.src = "about:blank";
+    sheetName = null;
+  }
+  $("sheetBg").onclick = function(){ if (confirmResolve) closeConfirm(false); else closeSheet(); };
+  $("sheetClose").onclick = closeSheet;
+  $("sheetDelete").onclick = function(){
+    var n = sheetName; if (!n) return;
+    var f = files.filter(function(x){ return x.name === n; })[0];
+    var jobs = [api(fileUrl(n) + "/delete", {method:"POST"})];
+    if (f && f.warn) jobs.push(api(fileUrl(f.warn) + "/delete", {method:"POST"}).catch(function(){}));
+    Promise.all(jobs).then(function(){ toast("Removed"); closeSheet(); refreshFiles(); })
+      .catch(function(){ toast("Couldn’t remove it — try again"); });
+  };
+
+  // ---------- controls ----------
+  function control(action, method, msg){
+    return api("/control?action=" + action, {method: method || "GET"}).then(function(j){
+      if (j && j.fired) { if (msg) toast(msg); setTimeout(function(){ refreshState(); refreshQueue(); }, 1500); }
+      else toast("The frame didn’t accept that");
+    }).catch(function(){ toast("Can’t reach the frame"); });
+  }
+  $("btnNext").onclick = function(){ control("next", "GET", "Next picture coming up"); };
+  $("btnScreen").onclick = function(){ control("screen", "GET"); };
+  var brightDragging = false, brightSetAt = 0;
+  function brightFill(){ var el = $("bright"); el.style.setProperty("--pct", ((el.value - 1) / 7 * 100) + "%"); }
+  $("bright").addEventListener("input", function(){ brightDragging = true; $("brightLabel").textContent = this.value + "/8"; brightFill(); });
+  $("bright").addEventListener("change", function(){
+    brightDragging = false; brightSetAt = Date.now();
+    api("/control?action=brightness&step=" + (this.value - 1), {method: "POST"}).then(function(j){
+      if (!j || !j.fired) toast("The frame didn’t accept that");
+    }).catch(function(){ toast("Can’t reach the frame"); });
+  });
+
+  // ---------- on-page confirm (no browser dialogs) ----------
+  var confirmResolve = null;
+  function askConfirm(text, yesLabel, body){
+    $("confirmText").textContent = text; $("confirmYes").textContent = yesLabel || "OK"; $("confirmBody").textContent = body || "";
+    $("sheetBg").classList.add("open"); $("confirmSheet").classList.add("open");
+    return new Promise(function(res){ confirmResolve = res; });
+  }
+  function closeConfirm(answer){
+    if (!confirmResolve) return;
+    $("confirmSheet").classList.remove("open");
+    if (!$("sheet").classList.contains("open")) $("sheetBg").classList.remove("open");
+    var r = confirmResolve; confirmResolve = null; r(answer);
+  }
+  $("confirmYes").onclick = function(){ closeConfirm(true); };
+  $("confirmNo").onclick = function(){ closeConfirm(false); };
+
+  // ---------- fit toggle ----------
+  function renderFit(){ $("fitFill").classList.toggle("sel", fit === "fill"); $("fitWhole").classList.toggle("sel", fit === "whole"); }
+  $("fitFill").onclick = function(){ fit = "fill"; try{localStorage.setItem("fit", fit);}catch(e){} renderFit(); };
+  $("fitWhole").onclick = function(){ fit = "whole"; try{localStorage.setItem("fit", fit);}catch(e){} renderFit(); };
+  renderFit();
+
+  // ---------- upload ----------
+  $("btnAdd").onclick = function(){ $("picker").click(); };
+  $("picker").onchange = function(){
+    var list = Array.prototype.slice.call(this.files || []); this.value = "";
+    if (!list.length) return;
+    var jobs = list.map(function(file){
+      var el = document.createElement("div"); el.className = "tile pending";
+      el.innerHTML = '<div class="vid">Preparing…</div><div class="bar" style="width:0"></div>';
+      var p = {file:file, el:el}; pending.push(p); return p;
+    });
+    renderGrid();
+    var ok = 0, failed = 0;
+    jobs.reduce(function(chain, p){
+      return chain.then(function(){ return processAndUpload(p).then(function(){ ok++; }, function(err){ failed++; console.warn(err); }); });
+    }, Promise.resolve()).then(function(){
+      pending = []; refreshFiles();
+      if (failed) toast(ok + " added, " + failed + " failed", 4000);
+      else toast(ok === 1 ? "Added — it’ll appear within a few minutes" : ok + " photos added", 3500);
+    });
+  };
+
+  function loadImage(file){
+    return new Promise(function(res, rej){
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function(){ res({img:img, url:url}); };
+      img.onerror = function(){ URL.revokeObjectURL(url); rej(new Error("Couldn’t read " + file.name)); };
+      img.src = url;
+    });
+  }
+  // Render to exactly 1080x1920 so the frame never has to scale or crop, and so HEIC/large
+  // phone photos arrive as small JPEGs the 2016-era board decodes instantly.
+  function renderForFrame(file){
+    return loadImage(file).then(function(o){
+      var img = o.img, iw = img.naturalWidth, ih = img.naturalHeight;
+      var c = document.createElement("canvas"); c.width = W; c.height = H;
+      var ctx = c.getContext("2d");
+      ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
+      var cover = Math.max(W / iw, H / ih), contain = Math.min(W / iw, H / ih);
+      if (fit === "whole" && Math.abs(iw / ih - W / H) > 0.02) {
+        ctx.fillStyle = "#000"; ctx.fillRect(0, 0, W, H);
+        softBackdrop(ctx, img, iw, ih, 0.45);
+        ctx.drawImage(img, (W - iw * contain) / 2, (H - ih * contain) / 2, iw * contain, ih * contain);
+      } else {
+        ctx.drawImage(img, (W - iw * cover) / 2, (H - ih * cover) / 2, iw * cover, ih * cover);
+      }
+      URL.revokeObjectURL(o.url);
+      return new Promise(function(res, rej){
+        c.toBlob(function(b){ b ? res(b) : rej(new Error("Couldn’t convert " + file.name)); }, "image/jpeg", 0.9);
+      });
+    });
+  }
+  function baseName(n){ return (n || "photo").replace(/\.[^.]+$/, "").replace(/[^\w\-]+/g, "_").slice(0, 60) || "photo"; }
+
+  function processAndUpload(p){
+    var f = p.file, label = p.el.querySelector(".vid"), bar = p.el.querySelector(".bar");
+    var isVideo = (f.type || "").indexOf("video/") === 0 || VIDEO.test(f.name);
+    var isGif = /gif$/i.test(f.type) || /\.gif$/i.test(f.name);
+    var prep;
+    if (isVideo || isGif) {
+      prep = Promise.resolve({blob:f, name:f.name || ("clip_" + Date.now() + ".mp4")});
+    } else {
+      prep = renderForFrame(f).then(function(b){
+        var name = baseName(f.name) + "_" + Date.now().toString(36) + ".jpg";
+        var u = URL.createObjectURL(b);
+        p.el.insertAdjacentHTML("afterbegin", '<img src="' + u + '" alt="">');
+        return {blob:b, name:name};
+      });
+    }
+    return prep.then(function(o){
+      label.textContent = "Uploading…";
+      return new Promise(function(res, rej){
+        var fd = new FormData(); fd.append("file", o.blob, o.name);
+        var x = new XMLHttpRequest(); x.open("POST", "/upload");
+        x.upload.onprogress = function(e){ if (e.lengthComputable) bar.style.width = (100 * e.loaded / e.total) + "%"; };
+        x.onload = function(){
+          if (x.status >= 200 && x.status < 300) { bar.style.width = "100%"; label.textContent = ""; res(); }
+          else rej(new Error("Upload failed (" + x.status + ")"));
+        };
+        x.onerror = function(){ rej(new Error("Network error")); };
+        x.send(fd);
+      });
+    }).catch(function(err){ label.textContent = "Failed"; p.el.classList.remove("pending"); throw err; });
+  }
+
+  // ---------- select mode ----------
+  function setSelecting(on){
+    selecting = on; picked = {};
+    document.body.classList.toggle("selecting", on);
+    $("btnSelect").textContent = on ? "Done" : "Select";
+    Array.prototype.forEach.call(document.querySelectorAll(".tile.picked"), function(t){ t.classList.remove("picked"); });
+    renderSelbar();
+  }
+  function renderSelbar(){
+    var n = Object.keys(picked).length;
+    $("selRemove").disabled = n === 0;
+    $("selRemove").textContent = n ? "Remove " + n : "Remove";
+  }
+  $("btnSelect").onclick = function(){ setSelecting(!selecting); };
+  $("selCancel").onclick = function(){ setSelecting(false); };
+  $("selRemove").onclick = function(){
+    var names = Object.keys(picked); if (!names.length) return;
+    askConfirm("Remove " + names.length + (names.length === 1 ? " photo" : " photos") + " from the frame?", "Remove").then(function(yes){
+    if (!yes) return;
+    var byName = {}; files.forEach(function(f){ byName[f.name] = f; });
+    names.reduce(function(chain, n){
+      return chain.then(function(){
+        var f = byName[n], jobs = [api(fileUrl(n) + "/delete", {method:"POST"})];
+        if (f && f.warn) jobs.push(api(fileUrl(f.warn) + "/delete", {method:"POST"}).catch(function(){}));
+        return Promise.all(jobs).catch(function(){});
+      });
+    }, Promise.resolve()).then(function(){
+      toast("Removed " + names.length); setSelecting(false); refreshFiles();
+    });
+    });
+  };
+
+  // ---------- show now ----------
+  $("sheetShow").onclick = function(){
+    var f = files.filter(function(x){ return x.name === sheetName; })[0];
+    if (!f || !f.assetKey) return;
+    api("/control?action=show&asset=" + encodeURIComponent(f.assetKey)).then(function(j){
+      if (j && j.fired) { toast("Showing it now"); closeSheet(); setTimeout(refreshState, 2500); }
+      else toast("Just added? It can be shown once the frame picks it up — try again in a few minutes.", 4500);
+    }).catch(function(){ toast("Can’t reach the frame"); });
+  };
+
+  // ---------- settings ----------
+  var INTERVALS = [[1,"1 min"],[5,"5 min"],[15,"15 min"],[30,"30 min"],[60,"1 hour"],[180,"3 hours"],[1440,"1 day"]];
+  var settingsDirty = 0;   // ignore polled state for a moment after a save
+  function intervalLabel(m){ return m % 1440 === 0 ? (m / 1440) + (m === 1440 ? " day" : " days") : m % 60 === 0 ? (m / 60) + (m === 60 ? " hour" : " hours") : m + " min"; }
+  function saveSettings(body, msg){
+    settingsDirty = Date.now();
+    return fetch("/settings", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)})
+      .then(function(r){ return r.json().then(function(j){ if (!r.ok || !j.ok) throw new Error(j.msg || j.error || ("HTTP " + r.status)); return j; }); })
+      .then(function(){ toast(msg || "Saved"); setTimeout(refreshState, 1200); })
+      .catch(function(e){ toast("Couldn’t save: " + e.message, 4000); settingsDirty = 0; refreshState(); });
+  }
+  function renderIntervals(cur){
+    var box = $("intervalChips"); box.innerHTML = "";
+    var list = INTERVALS.slice();
+    if (cur && !list.some(function(x){ return x[0] === cur; })) list.push([cur, intervalLabel(cur)]), list.sort(function(a,b){ return a[0]-b[0]; });
+    list.forEach(function(x){
+      var b = document.createElement("button"); b.className = "chip" + (x[0] === cur ? " sel" : ""); b.textContent = x[1];
+      b.onclick = function(){
+        Array.prototype.forEach.call(box.children, function(c){ c.classList.remove("sel"); }); b.classList.add("sel");
+        saveSettings({interval:x[0]}, "New picture every " + x[1]);
+      };
+      box.appendChild(b);
+    });
+  }
+  (function fillHours(){
+    ["sleepStart","sleepEnd"].forEach(function(id){
+      var sel = $(id);
+      for (var h = 0; h < 24; h++) { var o = document.createElement("option"); o.value = h; o.textContent = hourName(h); sel.appendChild(o); }
+    });
+  })();
+  function parseSleep(list){
+    // Only the simple "* A-B[,C-D] * * *" form is editable here; anything else is left alone.
+    if (!list || !list.length) return {on:false, start:22, end:7, simple:true};
+    var m = list.length === 1 && /^\*\s+([\d,\-]+)\s+\*\s+\*\s+\*$/.exec(list[0].trim());
+    if (!m) return {on:true, simple:false};
+    var hours = {};
+    m[1].split(",").forEach(function(p){ var r = p.split("-").map(Number); for (var h = r[0]; h <= (r.length > 1 ? r[1] : r[0]); h++) hours[h] = 1; });
+    var start = -1;
+    for (var i = 0; i < 24; i++) if (hours[i] && !hours[(i + 23) % 24]) { start = i; break; }
+    if (start < 0) return {on:true, simple:false};
+    var end = start; while (hours[(end + 1) % 24] && (end + 1) % 24 !== start) end = (end + 1) % 24;
+    return {on:true, start:start, end:(end + 1) % 24, simple:true};
+  }
+  function sleepCron(start, end){
+    if (start === end) return null;
+    var r = start < end ? start + "-" + (end - 1) : (end === 0 ? start + "-23" : start + "-23,0-" + (end - 1));
+    r = r.replace(/(^|,)(\d+)-\2(?=,|$)/g, "$1$2");
+    return "* " + r + " * * *";
+  }
+  function saveSleep(){
+    if (!$("sleepOn").checked) { $("sleepHours").hidden = true; return saveSettings({quietHours:[]}, "Screen stays on all day"); }
+    $("sleepHours").hidden = false;
+    var a = +$("sleepStart").value, b = +$("sleepEnd").value, c = sleepCron(a, b);
+    if (!c) { toast("Pick two different times"); return; }
+    saveSettings({quietHours:[c]}, "Sleeps " + hourName(a) + "–" + hourName(b));
+  }
+  $("sleepOn").onchange = saveSleep; $("sleepStart").onchange = saveSleep; $("sleepEnd").onchange = saveSleep;
+  var phoneTz = ""; try { phoneTz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch(e) {}
+  $("tzFix").onclick = function(){ saveSettings({timeZone:phoneTz}, "Time zone set to " + phoneTz); };
+  var nameEditing = false;
+  $("nameInput").addEventListener("focus", function(){ nameEditing = true; });
+  $("nameInput").addEventListener("blur", function(){ setTimeout(function(){ nameEditing = false; }, 300); });
+  $("nameInput").addEventListener("keydown", function(e){ if (e.key === "Enter") { e.preventDefault(); $("nameSave").click(); } });
+  $("nameSave").onclick = function(){
+    var v = $("nameInput").value.trim(); $("nameInput").blur();
+    saveSettings({name: v}, v ? "Renamed to " + v : "Name cleared");
+  };
+  function bytes(n){ return n >= 1e9 ? (n / 1e9).toFixed(1) + " GB" : Math.round(n / 1e6) + " MB"; }
+  function renderInfo(s){
+    var t = s.telemetry || {}, wifi = t.wifi || (s.network || {}).wifi || {}, st = t.storage || {}, app = s.app || {}, rows = [];
+    if (wifi.ip) rows.push(["Address", wifi.ip]);
+    if (wifi.ssid) rows.push(["Wi-Fi", wifi.ssid]);
+    if (st.availBytes) rows.push(["Free space", bytes(st.availBytes) + (st.totalBytes ? " of " + bytes(st.totalBytes) : "")]);
+    if (t.uptime && t.uptime.uptime) rows.push(["Up for", t.uptime.uptime]);
+    if (app.versionName) rows.push(["App", app.versionName + (app.gitSha ? " · " + String(app.gitSha).slice(0, 7) : "")]);
+    var dl = $("info"); dl.innerHTML = "";
+    rows.forEach(function(r){ var dt = document.createElement("dt"), dd = document.createElement("dd"); dt.textContent = r[0]; dd.textContent = r[1]; dl.appendChild(dt); dl.appendChild(dd); });
+    if (!nameEditing) $("nameInput").value = (s.device || {}).name || "";
+  }
+  function renderSettings(cfg){
+    if (Date.now() - settingsDirty < 5000) return;
+    renderIntervals(cfg.intervalMinutes || 5);
+    var sl = parseSleep(cfg.quietHours);
+    $("sleepOn").checked = !!sl.on;
+    if (sl.simple && sl.on) { $("sleepStart").value = sl.start; $("sleepEnd").value = sl.end; }
+    else if (!sl.on) { $("sleepStart").value = 22; $("sleepEnd").value = 7; }
+    $("sleepHours").hidden = !sl.on || !sl.simple;
+    $("sleepSummary").textContent = sl.on ? (sl.simple ? "" : "custom schedule") : "";
+    var tz = cfg.timezone || "";
+    $("tzRow").hidden = !(phoneTz && tz !== phoneTz);
+    $("tzName").textContent = tz || "not set";
+    $("tzFix").textContent = "Use my phone’s time zone (" + phoneTz + ")";
+  }
+
+  // ---------- extras: NYT front page ----------
+  // Done on the phone: the Times serves its daily scan.pdf with CORS open, the frame's Android 4.4
+  // has no PDF renderer, and the phone is many times faster at the glitch and GIF work.
+  var PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/";
+  var GIFENC = "https://cdn.jsdelivr.net/npm/gifenc@1.0.3/dist/gifenc.esm.js";
+  var NYT_PREFIX = "nyt-frontpage-";
+  var nytStyle = "gif", nytBusy = false;
+  try { nytStyle = localStorage.getItem("nytStyle") || "gif"; $("nytAuto").checked = localStorage.getItem("nytAuto") === "1"; } catch(e) {}
+  function renderNytStyle(){ Array.prototype.forEach.call(document.querySelectorAll("#nytCard .seg button"), function(b){ b.classList.toggle("sel", b.dataset.style === nytStyle); }); }
+  Array.prototype.forEach.call(document.querySelectorAll("#nytCard .seg button"), function(b){
+    b.onclick = function(){ nytStyle = b.dataset.style; try{localStorage.setItem("nytStyle", nytStyle);}catch(e){} renderNytStyle(); };
+  });
+  renderNytStyle();
+  $("nytAuto").onchange = function(){ try{ localStorage.setItem("nytAuto", this.checked ? "1" : "0"); }catch(e){} };
+  function nytSay(t){ $("nytStatus").textContent = t; }
+  function loadScript(src){
+    return new Promise(function(res, rej){ var s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = function(){ rej(new Error("Couldn’t load " + src.split("/").pop() + " (is the phone online?)")); }; document.head.appendChild(s); });
+  }
+  function ymd(d){ return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); }
+  function fetchFrontPage(){
+    var tries = [0, 1, 2, 3].map(function(i){ var d = new Date(); d.setDate(d.getDate() - i); return d; });
+    return tries.reduce(function(chain, d){
+      return chain.then(function(found){
+        if (found) return found;
+        var url = "https://static01.nyt.com/images/" + ymd(d).replace(/-/g, "/") + "/nytfrontpage/scan.pdf";
+        return fetch(url).then(function(r){ return r.ok ? r.arrayBuffer() : null; }).catch(function(){ return null; })
+          .then(function(buf){ return buf && buf.byteLength > 1000 ? {day: ymd(d), pdf: buf} : null; });
+      });
+    }, Promise.resolve(null)).then(function(found){ if (!found) throw new Error("No front page published in the last few days"); return found; });
+  }
+  function renderPdf(buf){
+    return (window.pdfjsLib ? Promise.resolve() : loadScript(PDFJS + "pdf.min.js")).then(function(){
+      pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + "pdf.worker.min.js";
+      return pdfjsLib.getDocument({data: new Uint8Array(buf)}).promise;
+    }).then(function(doc){ return doc.getPage(1); }).then(function(page){
+      var v1 = page.getViewport({scale: 1}), scale = Math.max(W / v1.width, H / v1.height);
+      var v = page.getViewport({scale: scale});
+      var big = document.createElement("canvas"); big.width = Math.ceil(v.width); big.height = Math.ceil(v.height);
+      var bctx = big.getContext("2d"); bctx.fillStyle = "#fff"; bctx.fillRect(0, 0, big.width, big.height);
+      return page.render({canvasContext: bctx, viewport: v}).promise.then(function(){
+        var c = document.createElement("canvas"); c.width = W; c.height = H;
+        c.getContext("2d").drawImage(big, -Math.floor((big.width - W) / 2), -Math.floor((big.height - H) / 2));
+        return c;
+      });
+    });
+  }
+  function rng32(seed){ return function(){ seed |= 0; seed = seed + 0x6D2B79F5 | 0; var t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  function rint(r, a, b){ return a + Math.floor(r() * (b - a)); }
+  function rnorm(r){ return Math.sqrt(-2 * Math.log(r() || 1e-9)) * Math.cos(2 * Math.PI * r()); }
+  // Mirror of nyt-frontpage.py: channel split, torn bands, datamosh blocks, scanlines, in one strip.
+  function glitch(base, r, strength, y0, y1){
+    var d = new Uint8ClampedArray(base), rowB = W * 4, tmp = new Uint8ClampedArray(rowB), h = y1 - y0;
+    function roll(y, dx, ch){ // shift row y right by dx; ch = channel or -1 for all
+      dx = ((dx % W) + W) % W; if (!dx) return;
+      var o = y * rowB; tmp.set(d.subarray(o, o + rowB));
+      for (var x = 0; x < W; x++) { var src = ((x - dx + W) % W) * 4, dst = o + x * 4;
+        if (ch < 0) { d[dst] = tmp[src]; d[dst+1] = tmp[src+1]; d[dst+2] = tmp[src+2]; } else d[dst+ch] = tmp[src+ch]; }
+    }
+    var sh = Math.floor(rint(r, 2, 6) * strength), y, i;
+    for (y = y0; y < y1; y++) { roll(y, -sh, 0); roll(y, sh, 2); }
+    var bands = Math.floor(rint(r, 4, 14) * strength);
+    for (i = 0; i < bands; i++) {
+      var bh = rint(r, 4, Math.min(90, Math.floor(h / 3))), by = y0 + rint(r, 0, h - bh), dx = Math.round(rnorm(r) * 60 * strength);
+      var tear = r() < 0.35, ch = rint(r, 0, 3), tdx = rint(r, -30, 30), inv = r() < 0.08;
+      for (y = by; y < by + bh; y++) {
+        roll(y, dx, -1); if (tear) roll(y, tdx, ch);
+        if (inv) for (var o = y * rowB, e = o + rowB; o < e; o += 4) { d[o] = 255 - d[o]; d[o+1] = 255 - d[o+1]; d[o+2] = 255 - d[o+2]; }
+      }
+    }
+    var blocks = Math.floor(rint(r, 0, 5) * strength);
+    for (i = 0; i < blocks; i++) {
+      var bw = rint(r, 60, 400), bk = rint(r, 20, Math.min(160, h - 1)), x0 = rint(r, 0, W - bw), yb = y0 + rint(r, 0, h - bk);
+      var sx = Math.min(Math.max(0, x0 + rint(r, -120, 120)), W - bw), sy = Math.min(Math.max(y0, yb + rint(r, -40, 40)), y1 - bk);
+      for (y = 0; y < bk; y++) d.copyWithin(((yb + y) * W + x0) * 4, ((sy + y) * W + sx) * 4, ((sy + y) * W + sx + bw) * 4);
+    }
+    for (y = y0; y < y1; y += 3) for (var p = y * rowB, q = p + rowB; p < q; p += 4) { d[p] *= 0.86; d[p+1] *= 0.86; d[p+2] *= 0.86; }
+    return d;
+  }
+  function toJpeg(canvas){ return new Promise(function(res){ canvas.toBlob(res, "image/jpeg", 0.9); }); }
+  function makeGif(base, seed, onprog){
+    // Frames are generated and encoded one at a time (a full set would be ~170 MB on the phone).
+    return import(GIFENC).then(function(G){
+      var r = rng32(seed), plan = [{zone: null, delay: 6000}];
+      for (var burst = 0; burst < 3; burst++) {
+        var zh = rint(r, 260, 560), zy = rint(r, 0, H - zh), n = rint(r, 3, 7);
+        for (var k = 0; k < n; k++) { var j = rint(r, -40, 40); plan.push({zone: [Math.max(0, zy + j), Math.min(H, zy + zh + j)], strength: 0.5 + r() * 1.1, delay: rint(r, 50, 110)}); }
+        plan.push({zone: null, delay: rint(r, 2500, 7000)});
+      }
+      var gr = rng32(seed ^ 0x5bd1e995);
+      var first = glitch(base, gr, 1, plan[1].zone[0], plan[1].zone[1]);
+      var sample = new Uint8ClampedArray(base.length * 2); sample.set(base); sample.set(first, base.length);
+      var palette = G.quantize(sample, 255); palette.push([0, 0, 0]); sample = first = null;
+      var T = palette.length - 1, baseIdx = G.applyPalette(base, palette), gif = G.GIFEncoder(), prev = null, i = 0;
+      function step(){
+        if (i >= plan.length) { gif.finish(); return new Blob([gif.bytes()], {type: "image/gif"}); }
+        var f = plan[i], idx = f.zone ? G.applyPalette(glitch(base, gr, f.strength, f.zone[0], f.zone[1]), palette) : baseIdx;
+        if (!prev) gif.writeFrame(idx, W, H, {palette: palette, delay: f.delay, repeat: 0, dispose: 1});
+        else { // unchanged pixels -> transparent, so each frame costs only its strip
+          var out = new Uint8Array(idx.length); for (var p = 0; p < idx.length; p++) out[p] = idx[p] === prev[p] ? T : idx[p];
+          gif.writeFrame(out, W, H, {delay: f.delay, transparent: true, transparentIndex: T, dispose: 1});
+        }
+        prev = idx; i++; if (onprog) onprog(i / plan.length);
+        return new Promise(function(res){ setTimeout(res, 0); }).then(step);
+      }
+      return step();
+    });
+  }
+  function uploadBlob(blob, name, onprog){
+    return new Promise(function(res, rej){
+      var fd = new FormData(); fd.append("file", blob, name);
+      var x = new XMLHttpRequest(); x.open("POST", "/upload");
+      x.upload.onprogress = function(e){ if (e.lengthComputable && onprog) onprog(e.loaded / e.total); };
+      x.onload = function(){ x.status >= 200 && x.status < 300 ? res() : rej(new Error("Upload failed (" + x.status + ")")); };
+      x.onerror = function(){ rej(new Error("Network error")); }; x.send(fd);
+    });
+  }
+  function frontPage(quiet){
+    if (nytBusy) return Promise.resolve();
+    nytBusy = true; $("nytGo").disabled = true;
+    var style = nytStyle, name;
+    nytSay("Getting today’s front page…");
+    return fetchFrontPage().then(function(fp){
+      name = NYT_PREFIX + fp.day + "-" + style + (style === "gif" ? ".gif" : ".jpg");
+      if (files.some(function(f){ return f.name === name; })) { nytSay("Already on the frame (" + fp.day + ")."); return "same"; }
+      nytSay("Rendering the " + fp.day + " page…");
+      return renderPdf(fp.pdf).then(function(canvas){
+        var seed = +fp.day.replace(/-/g, "");
+        if (style === "clean") return toJpeg(canvas);
+        var base = canvas.getContext("2d").getImageData(0, 0, W, H);
+        if (style === "glitch") {
+          var gd = glitch(base.data, rng32(seed), 1.3, 0, H);
+          canvas.getContext("2d").putImageData(new ImageData(gd, W, H), 0, 0); return toJpeg(canvas);
+        }
+        nytSay("Making the animation…");
+        return new Promise(function(r){ setTimeout(r, 30); }).then(function(){ return makeGif(base.data, seed, function(f){ nytSay("Making the animation… " + Math.round(f * 100) + "%"); }); });
+      }).then(function(blob){
+        nytSay("Sending to the frame (" + Math.round(blob.size / 1024) + " KB)…");
+        return uploadBlob(blob, name, function(f){ nytSay("Sending to the frame… " + Math.round(f * 100) + "%"); });
+      }).then(function(){
+        var old = files.filter(function(f){ return f.name.indexOf(NYT_PREFIX) === 0 && f.name !== name; });
+        return Promise.all(old.map(function(f){ return api(fileUrl(f.name) + "/delete", {method: "POST"}).catch(function(){}); }));
+      }).then(function(){ nytSay("Done — the " + fp.day + " front page is in rotation."); if (!quiet) toast("Front page added"); return refreshFiles(); });
+    }).catch(function(e){ nytSay("Couldn’t do it: " + e.message); })
+      .then(function(){ nytBusy = false; $("nytGo").disabled = false; try{ localStorage.setItem("nytLast", String(Date.now())); }catch(e){} });
+  }
+  $("nytGo").onclick = function(){ frontPage(false); };
+  function maybeAutoFrontPage(){
+    if (!$("nytAuto").checked) return;
+    var last = 0; try { last = +localStorage.getItem("nytLast") || 0; } catch(e) {}
+    var today = NYT_PREFIX + ymd(new Date());
+    if (files.some(function(f){ return f.name.indexOf(today) === 0; })) return;
+    if (Date.now() - last < 2 * 3600 * 1000) return;     // not more than every 2 hours while unpublished
+    frontPage(true);
+  }
+
+  // ---------- shared drawing helpers ----------
+  // Blurred, darkened full-bleed backdrop. Safari's canvas has no ctx.filter, so blur by drawing
+  // the image tiny and scaling it back up with smoothing.
+  function softBackdrop(ctx, img, iw, ih, dark){
+    var t = document.createElement("canvas"); t.width = 18; t.height = 32;
+    var tc = t.getContext("2d"), c = Math.max(18 / iw, 32 / ih);
+    tc.drawImage(img, (18 - iw * c) / 2, (32 - ih * c) / 2, iw * c, ih * c);
+    // scale back up in small steps; one big jump leaves visible blocks
+    var src = t;
+    [[45, 80], [108, 192], [270, 480]].forEach(function(sz){
+      var m = document.createElement("canvas"); m.width = sz[0]; m.height = sz[1];
+      var mc = m.getContext("2d"); mc.imageSmoothingEnabled = true; mc.imageSmoothingQuality = "high"; mc.drawImage(src, 0, 0, sz[0], sz[1]); src = m;
+    });
+    ctx.save(); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high"; ctx.drawImage(src, 0, 0, W, H);
+    ctx.fillStyle = "rgba(0,0,0," + dark + ")"; ctx.fillRect(0, 0, W, H); ctx.restore();
+  }
+  function wrapText(ctx, text, x, y, maxW, lineH, maxLines){
+    var words = String(text || "").split(/\s+/), line = "", lines = [];
+    words.forEach(function(w){ var t = line ? line + " " + w : w; if (ctx.measureText(t).width > maxW && line) { lines.push(line); line = w; } else line = t; });
+    if (line) lines.push(line);
+    if (lines.length > maxLines) { lines = lines.slice(0, maxLines); var last = lines[maxLines - 1]; while (ctx.measureText(last + "…").width > maxW && last.length) last = last.slice(0, -1); lines[maxLines - 1] = last + "…"; }
+    lines.forEach(function(l, i){ ctx.fillText(l, x, y + i * lineH); });
+    return lines.length;
+  }
+  var FONT = '-apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif';
+  function loadCover(url){
+    return new Promise(function(res, rej){ var im = new Image(); im.crossOrigin = "anonymous";
+      im.onload = function(){ res(im); }; im.onerror = function(){ rej(new Error("Couldn’t load album art")); }; im.src = url; });
+  }
+  // Upload, drop older files with the same prefix, and optionally put it on screen right away.
+  function replaceOnFrame(blob, name, prefix, say, showIt){
+    return uploadBlob(blob, name, function(f){ say("Sending to the frame… " + Math.round(f * 100) + "%"); }).then(function(){
+      return api("/files");
+    }).then(function(list){
+      var old = list.filter(function(f){ return f.name.indexOf(prefix) === 0 && f.name !== name; });
+      return Promise.all(old.map(function(f){ return api(fileUrl(f.name) + "/delete", {method: "POST"}).catch(function(){}); }))
+        .then(function(){ return list.filter(function(f){ return f.name === name; })[0]; });
+    }).then(function(f){
+      refreshFiles();
+      if (!showIt || !f || !f.assetKey) return;
+      var show = function(){ return api("/control?action=show&asset=" + encodeURIComponent(f.assetKey)).then(function(j){ return j && j.fired; }); };
+      // A new upload joins the rotation on the frame's next tick; "next" forces that tick.
+      return show().then(function(ok){
+        if (ok) return;
+        return api("/control?action=next").then(function(){ return new Promise(function(r){ setTimeout(r, 2500); }); }).then(show);
+      }).catch(function(){});
+    });
+  }
+
+  // ---------- extras: Spotify ----------
+  // Runs on the phone like the front page: Spotify's API, token endpoint and album art all allow
+  // browser access. Spotify only redirects logins to https, so from the plain-http home address the
+  // login bounces through a tiny static page that hands the one-time code back (PKCE keeps the code
+  // useless to anyone else). Opened over https (e.g. Tailscale Serve) the page is its own redirect.
+  function sha256(bytes){ // bytes: Uint8Array -> Uint8Array(32)
+    var K = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+    var H = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+    var l = bytes.length, n = ((l + 9 + 63) >> 6) << 6, m = new Uint8Array(n); m.set(bytes); m[l] = 0x80;
+    var bits = l * 8; for (var i = 0; i < 4; i++) m[n - 1 - i] = (bits >>> (8 * i)) & 255; m[n - 5] = Math.floor(l / 0x20000000) & 255;
+    var w = new Uint32Array(64);
+    for (var o = 0; o < n; o += 64) {
+      for (i = 0; i < 16; i++) w[i] = (m[o+4*i] << 24) | (m[o+4*i+1] << 16) | (m[o+4*i+2] << 8) | m[o+4*i+3];
+      for (i = 16; i < 64; i++) { var a0 = w[i-15], a1 = w[i-2];
+        var s0 = ((a0 >>> 7) | (a0 << 25)) ^ ((a0 >>> 18) | (a0 << 14)) ^ (a0 >>> 3), s1 = ((a1 >>> 17) | (a1 << 15)) ^ ((a1 >>> 19) | (a1 << 13)) ^ (a1 >>> 10);
+        w[i] = (w[i-16] + s0 + w[i-7] + s1) | 0; }
+      var a = H[0], b = H[1], c = H[2], d = H[3], e = H[4], f = H[5], g = H[6], h = H[7];
+      for (i = 0; i < 64; i++) {
+        var S1 = ((e >>> 6) | (e << 26)) ^ ((e >>> 11) | (e << 21)) ^ ((e >>> 25) | (e << 7)), ch = (e & f) ^ (~e & g);
+        var t1 = (h + S1 + ch + K[i] + w[i]) | 0, S0 = ((a >>> 2) | (a << 30)) ^ ((a >>> 13) | (a << 19)) ^ ((a >>> 22) | (a << 10));
+        var t2 = (S0 + ((a & b) ^ (a & c) ^ (b & c))) | 0;
+        h = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+      }
+      H[0] = (H[0] + a) | 0; H[1] = (H[1] + b) | 0; H[2] = (H[2] + c) | 0; H[3] = (H[3] + d) | 0;
+      H[4] = (H[4] + e) | 0; H[5] = (H[5] + f) | 0; H[6] = (H[6] + g) | 0; H[7] = (H[7] + h) | 0;
+    }
+    var out = new Uint8Array(32); for (i = 0; i < 8; i++) { out[4*i] = H[i] >>> 24; out[4*i+1] = H[i] >>> 16 & 255; out[4*i+2] = H[i] >>> 8 & 255; out[4*i+3] = H[i] & 255; }
+    return out;
+  }
+  var SP_BOUNCE = "https://shellen.github.io/eo-frame/kit/spotify/callback.html";
+  var SP_SCOPES = "user-read-recently-played user-read-currently-playing";
+  var SP_PREFIX = "spotify-grid-";
+  function ls(k, v){ try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch(e) { return null; } }
+  function b64url(bytes){ var s = ""; for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]); return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
+  function spRedirect(){ return ls("spRedirect") || (location.protocol === "https:" ? location.origin + "/" : SP_BOUNCE); }
+  var spStyle = ls("spStyle") === "anim" ? "anim" : "grid", spN = +(ls("spN") || 12), spBusy = false;
+  var music = {connected: false};   // the frame's /music/state
+  function spSay(t){ $("spStatus").textContent = t; }
+  function musicImg(u){ return "/music/img?u=" + encodeURIComponent(u); }
+  function refreshMusic(){
+    return api("/music/state").then(function(j){ music = j || {connected: false}; spRender(); if (queue) renderQueue(); return music; })
+      .catch(function(){ spRender(); return music; });
+  }
+  function spRender(){
+    var on = !!music.connected;
+    $("spSetup").hidden = on; $("spReady").hidden = !on;
+    $("spRedirectShow").textContent = spRedirect();
+    $("spClient").value = $("spClient").value || ls("spClient") || "";
+    Array.prototype.forEach.call(document.querySelectorAll("#spCard [data-sp]"), function(b){ b.classList.toggle("sel", b.dataset.sp === spStyle); });
+    Array.prototype.forEach.call(document.querySelectorAll("#spSizes .chip"), function(b){ b.classList.toggle("sel", +b.dataset.n === spN); });
+    Array.prototype.forEach.call(document.querySelectorAll("#musicStyles [data-ms]"), function(b){ b.classList.toggle("sel", b.dataset.ms === (sources.musicStyle || "kinetic")); });
+    Array.prototype.forEach.call(document.querySelectorAll("#musicLead [data-ml]"), function(b){ b.classList.toggle("sel", b.dataset.ml === (sources.musicLead || "artist")); });
+    $("musicTake").checked = sources.musicTakeover !== false;
+    $("spAuto").checked = ls("spAuto") === "1";
+    var c = music.current, l = music.last;
+    $("spWho").textContent = !on ? "Connect Spotify to use this" : c ? "Playing: " + c.title + " — " + c.artist : l ? "Last played: " + l.artist : music.error ? "Connected, but the frame can’t reach Spotify right now" : "Spotify connected";
+  }
+  function musicPreview(){
+    var st = sources.musicStyle || "kinetic", ld = sources.musicLead || "artist";
+    var src = "/music/?style=" + st + "&lead=" + ld + "&preview=1";
+    if ($("musicFrame").getAttribute("src") !== src) $("musicFrame").setAttribute("src", src);
+  }
+  Array.prototype.forEach.call(document.querySelectorAll("#musicStyles [data-ms]"), function(b){
+    b.onclick = function(){ saveSources({musicStyle: b.dataset.ms}, b.textContent); spRender(); musicPreview(); };
+  });
+  Array.prototype.forEach.call(document.querySelectorAll("#musicLead [data-ml]"), function(b){
+    b.onclick = function(){ saveSources({musicLead: b.dataset.ml}, "Leading with " + b.textContent.toLowerCase()); spRender(); musicPreview(); };
+  });
+  $("musicTake").onchange = function(){ saveSources({musicTakeover: this.checked}, this.checked ? "Music takes over while playing" : "Music stays in the rotation"); };
+  Array.prototype.forEach.call(document.querySelectorAll("#spCard [data-sp]"), function(b){ b.onclick = function(){ spStyle = b.dataset.sp; ls("spStyle", spStyle); spRender(); }; });
+  Array.prototype.forEach.call(document.querySelectorAll("#spSizes .chip"), function(b){ b.onclick = function(){ spN = +b.dataset.n; ls("spN", String(spN)); spRender(); }; });
+  $("spAuto").onchange = function(){ ls("spAuto", this.checked ? "1" : "0"); };
+  $("spCopy").onclick = function(){
+    var t = spRedirect();
+    (navigator.clipboard && window.isSecureContext ? navigator.clipboard.writeText(t) : Promise.reject()).then(function(){ toast("Copied"); }, function(){
+      var r = document.createRange(); r.selectNodeContents($("spRedirectShow")); var sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+      try { document.execCommand("copy"); toast("Copied"); } catch(e) { toast("Press and hold the address to copy it"); }
+    });
+  };
+  $("spRedirectEdit").onclick = function(){
+    var box = $("spRedirectShow"); box.contentEditable = "true"; box.focus(); toast("Edit the address, then tap Connect");
+    box.onblur = function(){ var v = box.textContent.trim(); ls("spRedirect", v && v !== SP_BOUNCE ? v : null); box.contentEditable = "false"; spRender(); };
+  };
+  $("spConnect").onclick = function(){
+    var id = $("spClient").value.trim();
+    if (!/^[0-9a-f]{32}$/i.test(id)) { toast("That doesn’t look like a Client ID (32 letters and numbers)"); return; }
+    ls("spClient", id);
+    var rnd = new Uint8Array(48); crypto.getRandomValues(rnd);
+    var verifier = b64url(rnd), nonce = b64url(rnd.subarray(0, 12));
+    ls("spVerifier", verifier); ls("spNonce", nonce);
+    var state = b64url(new TextEncoder().encode(JSON.stringify({f: location.origin, n: nonce})));
+    location.href = "https://accounts.spotify.com/authorize?" + new URLSearchParams({
+      client_id: id, response_type: "code", redirect_uri: spRedirect(), scope: SP_SCOPES,
+      code_challenge_method: "S256", code_challenge: b64url(sha256(new TextEncoder().encode(verifier))), state: state
+    }).toString();
+  };
+  $("spDisconnect").onclick = function(){
+    askConfirm("Disconnect Spotify from the frame?", "Disconnect").then(function(y){
+      if (!y) return;
+      api("/music/disconnect", {method: "POST"}).then(function(){ toast("Disconnected"); return refreshMusic(); }).catch(function(){ toast("Couldn’t reach the frame"); });
+    });
+  };
+  // Hand the connection to the frame: it keeps polling Spotify on its own from then on.
+  function handToFrame(t){
+    return fetch("/music/connect", {method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({clientId: ls("spClient"), refreshToken: t.refresh_token || t.refresh, accessToken: t.access_token || t.access, expiresIn: t.expires_in || 3000})})
+      .then(function(r){ return r.json().then(function(j){ if (!r.ok || !j.ok) throw new Error(j.msg || j.error || ("frame said " + r.status)); }); })
+      .then(function(){ ls("spTokens", null); return refreshMusic(); });
+  }
+  function spHandleReturn(){
+    var q = new URLSearchParams(location.search), h = new URLSearchParams(location.hash.slice(1));
+    var code = h.get("spotify_code") || q.get("code"), state = h.get("spotify_state") || q.get("state"), err = h.get("spotify_error") || q.get("error");
+    if (!code && !err) {
+      var legacy = null; try { legacy = JSON.parse(ls("spTokens") || "null"); } catch(e) {}
+      if (legacy && legacy.refresh) handToFrame(legacy).then(function(){ toast("Spotify moved to the frame"); }).catch(function(){});
+      return;
+    }
+    history.replaceState(null, "", location.pathname);
+    if (err) { toast("Spotify: " + (err === "access_denied" ? "you cancelled" : err), 4000); return; }
+    var st = {}; try { st = JSON.parse(atob(state.replace(/-/g, "+").replace(/_/g, "/"))); } catch(e) {}
+    if (!st.n || st.n !== ls("spNonce")) { toast("That Spotify login didn’t start on this phone — try Connect again", 4500); return; }
+    showTab("extras"); openExtra("spCard", true);
+    spSay("Finishing the Spotify connection…");
+    fetch("https://accounts.spotify.com/api/token", {method: "POST", headers: {"Content-Type": "application/x-www-form-urlencoded"},
+      body: new URLSearchParams({grant_type: "authorization_code", code: code, redirect_uri: spRedirect(), client_id: ls("spClient"), code_verifier: ls("spVerifier")}).toString()})
+      .then(function(r){ return r.json().then(function(j){ if (!r.ok) throw new Error(j.error_description || j.error || ("Spotify said " + r.status)); return j; }); })
+      .then(handToFrame)
+      .then(function(){ ls("spVerifier", null); ls("spNonce", null); spSay("Connected. The frame keeps up with your music on its own now."); toast("Spotify connected"); })
+      .catch(function(e){ spSay("Couldn’t connect: " + e.message); });
+  }
+  function spRecentAlbums(max){
+    return refreshMusic().then(function(m){
+      var r = (m.recent || []).slice();
+      if (m.current && m.current.art && !r.some(function(a){ return a.art === m.current.art; })) r.unshift({album: m.current.album, artist: m.current.artist, art: m.current.art});
+      if (!r.length) throw new Error(!m.connected ? "Connect Spotify first" : m.error ? "the frame can’t reach Spotify (" + String(m.error).split("\n")[0].slice(0, 120) + ")" : "No recent plays yet — the frame checks every couple of minutes");
+      return r.slice(0, max).map(function(a){ return {name: a.album, artist: a.artist, url: musicImg(a.art)}; });
+    });
+  }
+  function gridLayout(n){
+    var cols = n === 20 ? 4 : 3, rows = Math.ceil(n / cols), cell = Math.floor(W / cols), top = Math.floor((H - rows * cell) / 2);
+    return {cols: cols, rows: rows, cell: cell, top: top};
+  }
+  // Header and footer follow "Lead with": the artist (now or last played), the song, or the date.
+  function drawGridChrome(ctx, L, albums){
+    ctx.fillStyle = "#0d0d0d"; ctx.fillRect(0, 0, W, H);
+    var lead = sources.musicLead || "artist", pad = 60, cur = music.current || music.last || {};
+    var dateTxt = new Date().toLocaleDateString(undefined, {weekday: "long", month: "long", day: "numeric"});
+    var label, hero, foot;
+    if (lead === "date") { label = "RECENTLY PLAYED"; hero = dateTxt; foot = albums[0].name + " — " + albums[0].artist; }
+    else if (lead === "track" && cur.title) { label = music.current ? "NOW PLAYING" : "LAST PLAYED"; hero = cur.title; foot = (cur.artist || "") + " · " + dateTxt; }
+    else { label = music.current ? "NOW PLAYING" : "RECENTLY PLAYED"; hero = cur.artist || albums[0].artist; foot = (cur.title ? cur.title + " · " : "") + dateTxt; }
+    ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = "rgba(255,255,255,.55)"; ctx.font = "600 32px " + FONT; ctx.fillText(label, pad, L.top - 118);
+    ctx.fillStyle = "#fff"; var size = 72; ctx.font = "800 " + size + "px " + FONT;
+    while (ctx.measureText(hero).width > W - pad * 2 && size > 40) { size -= 4; ctx.font = "800 " + size + "px " + FONT; }
+    wrapText(ctx, hero, pad, L.top - 40, W - pad * 2, size, 1);
+    var f = L.top + L.rows * L.cell;
+    ctx.fillStyle = "rgba(255,255,255,.75)"; ctx.font = "500 36px " + FONT; wrapText(ctx, foot, pad, f + 80, W - pad * 2, 46, 2);
+  }
+  function cellXY(L, i){ return [(i % L.cols) * L.cell, L.top + Math.floor(i / L.cols) * L.cell]; }
+  function spGrid(n){
+    return spRecentAlbums(n).then(function(albums){
+      spSay("Getting album art…");
+      return Promise.all(albums.map(function(a){ return loadCover(a.url); })).then(function(imgs){
+        var L = gridLayout(n), c = document.createElement("canvas"); c.width = W; c.height = H; var ctx = c.getContext("2d");
+        drawGridChrome(ctx, L, albums);
+        imgs.forEach(function(im, i){ var p = cellXY(L, i); ctx.drawImage(im, p[0], p[1], L.cell, L.cell); });
+        return toJpeg(c);
+      });
+    });
+  }
+  // Animated: the grid, then one cover at a time cross-fades to an older album. Only one cell
+  // changes per frame, so the GIF stays small and the frame's old board plays it easily.
+  function spAnimated(n){
+    return spRecentAlbums(n * 2).then(function(albums){
+      spSay("Getting album art…");
+      return Promise.all(albums.map(function(a){ return loadCover(a.url); })).then(function(imgs){
+        return import(GIFENC).then(function(G){
+          var L = gridLayout(n), c = document.createElement("canvas"); c.width = W; c.height = H; var ctx = c.getContext("2d");
+          var shown = imgs.slice(0, n), spare = imgs.slice(n);
+          if (spare.length < 3) spare = spare.concat(imgs.slice(0, n).reverse());   // few albums: shuffle what there is
+          drawGridChrome(ctx, L, albums); shown.forEach(function(im, i){ var p = cellXY(L, i); ctx.drawImage(im, p[0], p[1], L.cell, L.cell); });
+          var base = ctx.getImageData(0, 0, W, H).data;
+          var gif = G.GIFEncoder(), prev = new Uint8ClampedArray(base);
+          var pal0 = G.quantize(base, 256);
+          gif.writeFrame(G.applyPalette(base, pal0), W, H, {palette: pal0, delay: 2500, repeat: 0, dispose: 1});
+          var order = []; for (var i = 0; i < n; i++) order.push(i); var r = rng32(+ymd(new Date()).replace(/-/g, ""));
+          for (i = order.length - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)), t = order[i]; order[i] = order[j]; order[j] = t; }
+          var swaps = Math.min(spare.length, 12), k = 0, step = 0, STEPS = 4, cs = L.cell;
+          // Each frame only touches one cell, so it gets its own palette built from that cell:
+          // every cover keeps its true colors, and everything outside the cell is transparent.
+          function frame(){
+            if (k >= swaps) { gif.finish(); return new Blob([gif.bytes()], {type: "image/gif"}); }
+            var slot = order[k % order.length], p = cellXY(L, slot), from = shown[slot], to = spare[k];
+            step++;
+            ctx.globalAlpha = 1; ctx.drawImage(from, p[0], p[1], cs, cs);
+            ctx.globalAlpha = step / STEPS; ctx.drawImage(to, p[0], p[1], cs, cs); ctx.globalAlpha = 1;
+            var cell = ctx.getImageData(p[0], p[1], cs, cs).data;
+            var pal = G.quantize(cell, 255); pal.push([0, 0, 0]); var T = pal.length - 1;
+            var cidx = G.applyPalette(cell, pal), out = new Uint8Array(W * H).fill(T);
+            for (var yy = 0; yy < cs; yy++) for (var xx = 0; xx < cs; xx++) {
+              var ci = yy * cs + xx, fi = (p[1] + yy) * W + p[0] + xx, c4 = ci * 4, f4 = fi * 4;
+              if (cell[c4] !== prev[f4] || cell[c4 + 1] !== prev[f4 + 1] || cell[c4 + 2] !== prev[f4 + 2]) {
+                out[fi] = cidx[ci]; prev[f4] = cell[c4]; prev[f4 + 1] = cell[c4 + 1]; prev[f4 + 2] = cell[c4 + 2];
+              }
+            }
+            gif.writeFrame(out, W, H, {palette: pal, delay: step === STEPS ? 2200 : 70, transparent: true, transparentIndex: T, dispose: 1});
+            if (step === STEPS) { shown[slot] = to; step = 0; k++; spSay("Making the animation… " + Math.round(k / swaps * 100) + "%"); }
+            return new Promise(function(res){ setTimeout(res, 0); }).then(frame);
+          }
+          return frame();
+        });
+      });
+    });
+  }
+  function spRun(quiet){
+    if (spBusy) return Promise.resolve(); spBusy = true; $("spGo").disabled = true;
+    var n = spN, name = SP_PREFIX + ymd(new Date()) + "-" + n + (spStyle === "anim" ? ".gif" : ".jpg");
+    spSay("Getting your recent plays…");
+    return (spStyle === "anim" ? spAnimated(n) : spGrid(n)).then(function(blob){
+      return replaceOnFrame(blob, name, SP_PREFIX, spSay, !quiet);
+    }).then(function(){ ls("spLastGrid", String(Date.now())); spSay("Done — your albums are on the frame."); if (!quiet) toast("Albums added"); })
+      .catch(function(e){ spSay("Couldn’t do it: " + e.message); })
+      .then(function(){ spBusy = false; $("spGo").disabled = false; });
+  }
+  $("spGo").onclick = function(){ spRun(false); };
+  function maybeAutoSpotify(){
+    if (!music.connected || ls("spAuto") !== "1") return;
+    if (Date.now() - (+(ls("spLastGrid") || 0)) < 3 * 3600 * 1000) return;   // at most every 3 hours
+    spRun(true);
+  }
+  spHandleReturn();
+  setInterval(function(){ if (!document.hidden && music.connected) refreshMusic(); }, 20000);
+
+  // ---------- what's on the frame ----------
+  var sources = {photos: true, art: false, nyt: true, spotify: true, artCount: 1, artStyles: "", music: false, musicTakeover: true, musicStyle: "kinetic", musicLead: "artist"};
+  function kindOf(n){ n = (n || "").toLowerCase(); return n.indexOf("nyt-frontpage-") === 0 ? "nyt" : n.indexOf("spotify-") === 0 ? "spotify" : n.indexOf("art-") === 0 ? "art" : "photos"; }
+  function renderSources(){
+    Array.prototype.forEach.call(document.querySelectorAll("[data-src]"), function(el){ el.checked = !!sources[el.dataset.src]; });
+    $("artOftenRow").hidden = !sources.art;
+    Array.prototype.forEach.call(document.querySelectorAll("#artOften .chip"), function(b){ b.classList.toggle("sel", +b.dataset.c === sources.artCount); });
+    var c = {photos: 0, nyt: 0, spotify: 0, art: 0}; files.forEach(function(f){ c[kindOf(f.name)]++; });
+    $("srcCountPhotos").textContent = c.photos + (c.photos === 1 ? " photo" : " photos") + (sources.photos ? "" : " · paused");
+    $("srcCountArt").textContent = (sources.art ? "On · " : "") + "Live, different every time" + (c.art ? " · " + c.art + " kept" : "");
+    $("srcCountNyt").textContent = c.nyt ? (sources.nyt ? "Today’s front page · in the rotation" : "Paused") : "Today’s front page · not added yet";
+    $("srcCountSpotify").textContent = c.spotify ? (sources.spotify ? "in the rotation" : "paused") : "";
+    Array.prototype.forEach.call(document.querySelectorAll(".tile[data-name]"), function(t){
+      var k = kindOf(t.dataset.name), off = !sources[k];
+      t.classList.toggle("off", off);
+      var b = t.querySelector(".offb");
+      if (off && !b) { b = document.createElement("span"); b.className = "badge offb"; b.textContent = "Off"; t.appendChild(b); }
+      if (!off && b) b.remove();
+    });
+    renderArtStyles();
+    if (typeof spRender === "function") spRender();
+  }
+  function saveSources(patch, msg){
+    for (var k in patch) sources[k] = patch[k];
+    renderSources();
+    return saveSettings({sources: patch}, msg);
+  }
+  function loadSources(){
+    return api("/settings").then(function(j){ if (j && j.sources) { for (var k in j.sources) sources[k] = j.sources[k]; } renderSources(); }).catch(function(){ renderSources(); });
+  }
+  Array.prototype.forEach.call(document.querySelectorAll("[data-src]"), function(el){
+    el.onchange = function(){
+      if (el.dataset.src === "music" && el.checked && !music.connected) {
+        el.checked = false; openExtra("spCard", true); toast("Connect Spotify first"); return;
+      }
+      var card = {art: "artCard", music: "spCard", nyt: "nytCard"}[el.dataset.src];
+      if (card && el.checked) openExtra(card, true);
+      var p = {}; p[el.dataset.src] = el.checked;
+      var label = {photos: "Photos", art: "Generative art", nyt: "Front page", spotify: "Spotify stills", music: "Live music"}[el.dataset.src];
+      saveSources(p, label + (el.checked ? " on" : " off"));
+    };
+  });
+  Array.prototype.forEach.call(document.querySelectorAll("#artOften .chip"), function(b){
+    b.onclick = function(){ saveSources({artCount: +b.dataset.c}, b.textContent); };
+  });
+
+  // ---------- extras: generative art ----------
+  var artStyleList = [], artSeed = 0, artStyle = "";
+  function artLoad(){
+    artSeed = Math.floor(Math.random() * 1e9);
+    var pick = (sources.artStyles || "").split(",").filter(Boolean);
+    artStyle = pick.length ? pick[Math.floor(Math.random() * pick.length)] : "";
+    $("artFrame").src = "/art/?seed=" + artSeed + (artStyle ? "&style=" + artStyle : "") + "&preview=1";
+  }
+  $("artFrame").addEventListener("load", function(){
+    try {
+      var w = $("artFrame").contentWindow;
+      if (w.ART_STYLES && !artStyleList.length) { artStyleList = w.ART_STYLES; renderArtStyles(); renderGrid(); if (queue) renderQueue(); }
+      var id = (w.ART_CURRENT && w.ART_CURRENT.id) || artStyle, hit = artStyleList.filter(function(s){ return s.id === id; })[0];
+      $("artName").textContent = hit ? hit.name : "Generative art";
+    } catch (e) { $("artName").textContent = "Generative art"; }
+  });
+  function renderArtStyles(){
+    var box = $("artStyles"); if (!artStyleList.length) return;
+    var chosen = (sources.artStyles || "").split(",").filter(Boolean);
+    box.innerHTML = "";
+    artStyleList.forEach(function(st){
+      var b = document.createElement("button"); b.className = "chip" + (chosen.indexOf(st.id) >= 0 ? " sel" : ""); b.textContent = st.name;
+      b.onclick = function(){
+        var c = (sources.artStyles || "").split(",").filter(Boolean), i = c.indexOf(st.id);
+        if (i >= 0) c.splice(i, 1); else c.push(st.id);
+        saveSources({artStyles: c.join(",")}, c.length ? c.length + (c.length === 1 ? " style" : " styles") + " on the frame" : "All styles on the frame");
+      };
+      box.appendChild(b);
+    });
+    $("artStylesNote").textContent = chosen.length ? chosen.length + " picked" : "all (tap to pick)";
+  }
+  $("artShuffle").onclick = artLoad;
+  $("artKeep").onclick = function(){
+    var cv; try { cv = $("artFrame").contentDocument.querySelector("canvas"); } catch (e) {}
+    if (!cv) { toast("Nothing to keep yet"); return; }
+    var c = document.createElement("canvas"); c.width = W; c.height = H;
+    var cx = c.getContext("2d"), k = Math.max(W / cv.width, H / cv.height);
+    cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = "high";
+    cx.drawImage(cv, (W - cv.width * k) / 2, (H - cv.height * k) / 2, cv.width * k, cv.height * k);
+    toJpeg(c).then(function(blob){
+      var cur = {}; try { cur = $("artFrame").contentWindow.ART_CURRENT || {}; } catch (e) {}
+      var sid = cur.id || artStyle, seed = typeof cur.seed === "number" ? cur.seed : artSeed;
+      if (!sid) throw new Error("no style");
+      return uploadBlob(blob, "art-" + sid + "-" + seed.toString(36) + ".jpg");
+    }).then(function(){
+      toast(sources.art ? "Kept. It’ll replay, animated, in your rotation" : "Kept. Switch Generative art on to see it", 3500);
+      refreshFiles(); setTimeout(refreshQueue, 2500);
+    }).catch(function(){ toast("Couldn’t save it"); });
+  };
+
+  // ---------- update the frame from the phone ----------
+  // What the frame says about a staged update, in plain words. The frame installs through its own
+  // adb connection, which a computer that is still attached over adb blocks.
+  var updBusy = false;
+  function updWhy(u){
+    if (u.state === "INSTALL_PENDING") return "Installing now. The frame restarts when it’s done.";
+    if (u.adbdReachable === false || u.installMode === "intent" || u.installMode === "defer-to-human" || u.needsHumanConfirmation)
+      return "The frame’s installer is busy or unreachable. If a computer has used adb with this frame, run “adb kill-server” on it (or reboot the frame), then tap Install.";
+    if (u.lastError) return "Last try: " + u.lastError + ". Tap Install to try again.";
+    return "Downloaded and checked. Tap Install.";
+  }
+  function renderUpdate(s){
+    var u = (s && s.update) || {}, waiting = u.state === "STAGED" || u.state === "INSTALL_PENDING";
+    $("updStagedRow").hidden = !waiting;
+    if (!waiting) return;
+    $("updStagedTitle").textContent = (u.expectedVersionName ? "Version " + u.expectedVersionName : "An update") + (u.state === "STAGED" ? " is waiting" : " is installing");
+    var older = /VERSION_DOWNGRADE/.test(u.lastError || "");
+    $("updStagedWhy").textContent = older ? "It’s older than the version the frame is running, so it can’t install. Discard it." : updWhy(u);
+    $("updInstall").hidden = u.state !== "STAGED" || older;
+    $("updDiscard").hidden = u.state !== "STAGED";
+  }
+  $("updDiscard").onclick = function(){
+    $("updDiscard").disabled = true;
+    api("/control?action=update-reset").catch(function(){}).then(function(){
+      toast("Discarded the waiting update", 3000);
+      setTimeout(function(){ $("updDiscard").disabled = false; refreshState(); }, 2500);
+    });
+  };
+  $("updInstall").onclick = function(){
+    $("updInstall").disabled = true;
+    api("/control?action=install-staged").catch(function(){}).then(function(){
+      toast("Asked the frame to install it", 3000);
+      setTimeout(function(){ $("updInstall").disabled = false; refreshState(); }, 8000);
+    });
+  };
+
+  $("updPick").onclick = function(){ $("updFile").click(); };
+  function updSay(t){ $("updStatus").textContent = t; }
+  $("updFile").onchange = function(){
+    var f = this.files && this.files[0]; this.value = "";
+    if (!f) return;
+    if (!/\.apk$/i.test(f.name)) { toast("Pick the frame’s .apk file"); return; }
+    var before = (state && state.app && state.app.versionName) || "";
+    updSay("Sending… 0%"); $("updPick").disabled = true;
+    var fd = new FormData(); fd.append("file", f, f.name);
+    var x = new XMLHttpRequest(); x.open("POST", "/update/apk");
+    x.upload.onprogress = function(e){ if (e.lengthComputable) updSay("Sending… " + Math.round(100 * e.loaded / e.total) + "%"); };
+    x.onerror = function(){ updSay("Couldn’t reach the frame"); $("updPick").disabled = false; };
+    x.onload = function(){
+      var j = {}; try { j = JSON.parse(x.responseText); } catch (e) {}
+      if (!j.ok) {
+        var r = String(j.reason || j.msg || j.error || x.status);
+        var why = /not-newer/.test(r) ? "That APK isn’t newer than what’s installed." :
+                  /signature|signer|cert/i.test(r) ? "That APK isn’t signed with this frame’s key." :
+                  /install-in-flight/.test(r) ? "An update is already installing." : "The frame refused it (" + r + ").";
+        updSay(why); $("updPick").disabled = false; return;
+      }
+      updSay("Checked and staged. Installing…");
+      api("/control?action=install-staged").catch(function(){}).then(function(){
+        updSay("Installing… the frame restarts in about a minute.");
+        var t0 = Date.now();
+        (function poll(){
+          api("/state").then(function(s2){
+            var v = s2 && s2.app && s2.app.versionName;
+            if (v && v !== before) { updSay("Updated to " + v + "."); toast("Frame updated to " + v); $("updPick").disabled = false; refreshState(); return; }
+            var u = s2 && s2.update;
+            if (u && u.state === "STAGED" && Date.now() - t0 > 45000) { updSay("Uploaded, but not installed yet. See below."); $("updPick").disabled = false; renderUpdate(s2); return; }
+            if (Date.now() - t0 > 240000) { updSay("Still on " + (v || before) + "."); $("updPick").disabled = false; renderUpdate(s2); return; }
+            setTimeout(poll, 5000);
+          }).catch(function(){ setTimeout(poll, 5000); });   // the frame is restarting
+        })();
+      });
+    };
+    x.send(fd);
+  };
+
+  // ---------- appearance ----------
+  (function(){
+    var on = false; try { on = localStorage.getItem("eoSketch") === "1"; } catch(e) {}
+    document.body.classList.toggle("sketch", on); $("sketchOn").checked = on;
+    $("sketchOn").onchange = function(){
+      document.body.classList.toggle("sketch", this.checked);
+      try { localStorage.setItem("eoSketch", this.checked ? "1" : "0"); } catch(e) {}
+    };
+  })();
+
+  // ---------- photo services & web pages ----------
+  var srcType = "immich", SRC_NAMES = {immich: "Immich", flickr: "Flickr", web: "Web page"};
+  Array.prototype.forEach.call(document.querySelectorAll("#srcType button"), function(b){
+    b.onclick = function(){
+      srcType = b.dataset.t;
+      Array.prototype.forEach.call(document.querySelectorAll("#srcType button"), function(x){ x.classList.toggle("sel", x === b); });
+      Array.prototype.forEach.call(document.querySelectorAll(".srcform"), function(f){ f.hidden = f.dataset.for !== srcType; });
+    };
+  });
+  function backendChange(change, msg){
+    return fetch("/settings", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({backend: change})})
+      .then(function(r){ return r.json().then(function(j){ if (!r.ok || !j.ok) throw new Error(j.msg || j.error || ("HTTP " + r.status)); }); })
+      .then(function(){ toast(msg); setTimeout(function(){ refreshState(); refreshQueue(); }, 1200); });
+  }
+  function renderMoreSources(cfg){
+    var list = ((cfg && cfg.backends) || []).filter(function(b){ return SRC_NAMES[b.type] && !/^art-/.test(b.id) && b.id !== "music-1"; });
+    $("srcSummary").textContent = list.length ? list.map(function(b){ return SRC_NAMES[b.type]; }).join(", ") + (list.some(function(b){ return !b.valid; }) ? " · needs attention" : "") : "Immich, Flickr or any web page";
+    var box = $("srcList"); box.innerHTML = "";
+    list.forEach(function(b){
+      var row = document.createElement("div"); row.className = "srcitem";
+      var t = document.createElement("span"), ttl = document.createElement("b"), det = document.createElement("small");
+      ttl.textContent = SRC_NAMES[b.type];
+      det.textContent = !b.valid ? "Incomplete. Remove it and add it again" : (b.host || b.source || "");
+      if (!b.valid) det.className = "bad";
+      if (b.type === "web") WEB_HOSTS[b.id] = b.host || "";
+      var ls = b.type === "web" && b.valid ? b.lastShown : null;
+      var stl = null;
+      if (ls) {
+        stl = document.createElement("small");
+        if (ls.ok === false) { stl.textContent = "Couldn’t load on the frame at " + clock(ls.atMs) + ": " + ls.error + "."; stl.className = "st bad"; }
+        else if (ls.warning) { stl.textContent = "Loaded at " + clock(ls.atMs) + ", but " + ls.warning + "."; stl.className = "st warn"; }
+        else { stl.textContent = "Showed fine at " + clock(ls.atMs); stl.className = "st"; }
+      }
+      t.appendChild(ttl); t.appendChild(det); if (stl) t.appendChild(stl);
+      var ctl = document.createElement("span"); ctl.className = "ctl";
+      var rm = document.createElement("button"); rm.className = "linkbtn"; rm.textContent = "Remove";
+      rm.onclick = function(){ askConfirm("Remove this " + SRC_NAMES[b.type] + " source?", "Remove", "Its pictures leave the rotation. You can add it again later.").then(function(y){ if (y) backendChange({op: "remove", id: b.id}, "Removed").catch(function(e){ toast("Couldn’t remove it: " + e.message, 4000); }); }); };
+      var sw = document.createElement("label"); sw.className = "switch"; sw.innerHTML = '<input type="checkbox"><span></span>';
+      var cb = sw.firstChild; cb.checked = b.enabled !== false;
+      cb.onchange = function(){ backendChange({op: "enable", id: b.id, enabled: cb.checked}, SRC_NAMES[b.type] + (cb.checked ? " on" : " off")).catch(function(e){ cb.checked = !cb.checked; toast("Couldn’t change it: " + e.message, 4000); }); };
+      ctl.appendChild(rm); ctl.appendChild(sw); row.appendChild(t); row.appendChild(ctl); box.appendChild(row);
+    });
+  }
+  $("srcAdd").onclick = function(){
+    var c = {op: "add", type: srcType};
+    if (srcType === "immich") { c.host = $("imHost").value.trim(); c.userid = $("imUser").value.trim(); c.password = $("imPass").value; }
+    else if (srcType === "flickr") { c.apiKey = $("flKey").value.trim(); c.source = $("flSrc").value.trim(); }
+    else { c.host = $("wbUrl").value.trim(); }
+    $("srcAdd").disabled = true;
+    backendChange(c, SRC_NAMES[srcType] + " added. Its pictures join the rotation shortly").then(function(){
+      ["imHost", "imUser", "imPass", "flKey", "flSrc", "wbUrl"].forEach(function(id){ $(id).value = ""; });
+    }).catch(function(e){ toast(e.message, 5000); }).then(function(){ $("srcAdd").disabled = false; });
+  };
+
+  // ---------- maintenance ----------
+  function waitForFrame(msg){
+    var t0 = Date.now(); toast(msg, 6000);
+    setTimeout(function poll(){
+      api("/health").then(function(){ toast("The frame is back"); refreshFiles(); refreshState(); refreshQueue(); })
+        .catch(function(){ if (Date.now() - t0 < 240000) setTimeout(poll, 4000); else toast("The frame hasn’t come back yet. Check its power.", 6000); });
+    }, 8000);
+  }
+  $("mRestart").onclick = function(){
+    askConfirm("Restart the frame’s app?", "Restart", "The picture disappears for a few seconds. Photos and settings stay.").then(function(y){
+      if (!y) return;
+      api("/control?action=restart-app", {method: "POST"}).then(function(j){ if (j && j.fired) waitForFrame("Restarting the app…"); else toast("The frame didn’t accept that"); })
+        .catch(function(){ waitForFrame("Restarting the app…"); });
+    });
+  };
+  $("mReboot").onclick = function(){
+    askConfirm("Reboot the frame?", "Reboot", "It will be off for about a minute. Photos and settings stay.").then(function(y){
+      if (!y) return;
+      api("/control?action=reboot", {method: "POST"}).then(function(j){ if (j && j.fired) waitForFrame("Rebooting. Back in about a minute…"); else toast("The frame didn’t accept that"); })
+        .catch(function(){ waitForFrame("Rebooting. Back in about a minute…"); });
+    });
+  };
+
+  // ---------- go ----------
+  refreshFiles().then(refreshState).then(refreshQueue).then(loadSources).then(refreshMusic).then(function(){ musicPreview(); artLoad(); })
+    .then(maybeAutoFrontPage).then(maybeAutoSpotify);
+  setInterval(function(){ refreshState(); refreshQueue(); }, 15000);
+  document.addEventListener("visibilitychange", function(){ if (!document.hidden) { refreshFiles(); refreshState(); } });
+})();
+</script>
+</body>
+</html>

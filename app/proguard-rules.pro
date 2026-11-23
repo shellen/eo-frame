@@ -76,3 +76,7 @@
 # missing from this file". ./publish-update.sh now asks the built APK that question directly
 # (its reflection gate), so a missing @Keep costs a release rather than a wall.
 
+
+# Conscrypt (modern TLS for the Spotify connection): JNI and reflective lookups.
+-keep class org.conscrypt.** { *; }
+-dontwarn org.conscrypt.**
