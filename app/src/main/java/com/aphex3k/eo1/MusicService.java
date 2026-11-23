@@ -452,6 +452,173 @@ public final class MusicService {
         }
     }
 
+    // ------------------------------------------------------------------ lyrics (LRCLIB)
+
+    private static final String LYRICS_HOST = "https://lrclib.net/api/";
+    private static final String LYRICS_AGENT = "eo-frame (https://github.com/shellen/eo-frame)";
+    private static final Pattern LRC_TAG = Pattern.compile("\\[(\\d{1,3}):(\\d{1,2}(?:[.:]\\d{1,3})?)\\]");
+    private final java.util.LinkedHashMap<String, JsonObject> lyricsCache =
+            new java.util.LinkedHashMap<String, JsonObject>(16, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(java.util.Map.Entry<String, JsonObject> e) {
+                    return size() > 40;
+                }
+            };
+
+    /**
+     * Timed lyrics for a song from LRCLIB (a free, community-run lyrics database), cached in
+     * memory. Only the song's artist, title, album and length are sent.
+     *
+     * @return {found, synced, instrumental, lines:[{t: ms, l: text}]}; found=false when LRCLIB has
+     *         none, plus "error" when it couldn't be asked (not cached, so a later play retries)
+     */
+    public JsonObject lyrics(@Nullable String artist, @Nullable String title, @Nullable String album, long durationMs) {
+        artist = artist == null ? "" : artist.trim();
+        title = title == null ? "" : title.trim();
+        album = album == null ? "" : album.trim();
+        JsonObject out = new JsonObject();
+        if (artist.isEmpty() || title.isEmpty()) {
+            out.addProperty("found", false);
+            return out;
+        }
+        String key = (artist + "\n" + title + "\n" + album + "\n" + (durationMs / 1000)).toLowerCase(Locale.US);
+        synchronized (lyricsCache) {
+            JsonObject hit = lyricsCache.get(key);
+            if (hit != null) {
+                return hit.deepCopy();
+            }
+        }
+        try {
+            JsonObject rec = null;
+            long secs = Math.round(durationMs / 1000.0);
+            if (!album.isEmpty() && secs > 0) {
+                okhttp3.HttpUrl u = okhttp3.HttpUrl.parse(LYRICS_HOST + "get").newBuilder()
+                        .addQueryParameter("artist_name", artist).addQueryParameter("track_name", title)
+                        .addQueryParameter("album_name", album).addQueryParameter("duration", String.valueOf(secs)).build();
+                JsonElement e = lyricsGet(u);
+                if (e != null && e.isJsonObject()) {
+                    rec = e.getAsJsonObject();
+                }
+            }
+            if (rec == null || !hasSynced(rec)) {
+                okhttp3.HttpUrl u = okhttp3.HttpUrl.parse(LYRICS_HOST + "search").newBuilder()
+                        .addQueryParameter("artist_name", artist).addQueryParameter("track_name", title).build();
+                JsonElement e = lyricsGet(u);
+                JsonObject best = e != null && e.isJsonArray() ? pickLyrics(e.getAsJsonArray(), secs) : null;
+                if (best != null) {
+                    rec = best;
+                }
+            }
+            out = lyricsResult(rec);
+        } catch (IOException | RuntimeException e) {
+            Log.w(TAG, "lyrics: " + e);
+            out.addProperty("found", false);
+            out.addProperty("error", "couldn't reach the lyrics service");
+            return out;
+        }
+        synchronized (lyricsCache) {
+            lyricsCache.put(key, out.deepCopy());
+        }
+        return out;
+    }
+
+    @Nullable
+    private JsonElement lyricsGet(okhttp3.HttpUrl url) throws IOException {
+        Request req = new Request.Builder().url(url).header("User-Agent", LYRICS_AGENT).build();
+        Response r = client().newCall(req).execute();
+        try {
+            if (r.code() == 404) {
+                return null;
+            }
+            if (!r.isSuccessful()) {
+                throw new IOException("lrclib " + r.code());
+            }
+            ResponseBody b = r.body();
+            return b == null ? null : JsonParser.parseString(b.string());
+        } finally {
+            r.close();
+        }
+    }
+
+    private static boolean hasSynced(JsonObject rec) {
+        return rec.has("syncedLyrics") && rec.get("syncedLyrics").isJsonPrimitive()
+                && !rec.get("syncedLyrics").getAsString().trim().isEmpty();
+    }
+
+    /** From search results: the first with timed lyrics and a length within 4 s (any length if unknown). */
+    @Nullable
+    static JsonObject pickLyrics(JsonArray results, long secs) {
+        JsonObject instrumental = null;
+        for (JsonElement e : results) {
+            if (!e.isJsonObject()) {
+                continue;
+            }
+            JsonObject o = e.getAsJsonObject();
+            double d = o.has("duration") && o.get("duration").isJsonPrimitive() ? o.get("duration").getAsDouble() : 0;
+            if (secs > 0 && d > 0 && Math.abs(d - secs) > 4) {
+                continue;
+            }
+            if (hasSynced(o)) {
+                return o;
+            }
+            if (instrumental == null && o.has("instrumental") && o.get("instrumental").getAsBoolean()) {
+                instrumental = o;
+            }
+        }
+        return instrumental;
+    }
+
+    static JsonObject lyricsResult(@Nullable JsonObject rec) {
+        JsonObject out = new JsonObject();
+        boolean instrumental = rec != null && rec.has("instrumental") && rec.get("instrumental").isJsonPrimitive()
+                && rec.get("instrumental").getAsBoolean();
+        JsonArray lines = rec != null && hasSynced(rec) ? parseLrc(rec.get("syncedLyrics").getAsString()) : new JsonArray();
+        out.addProperty("found", lines.size() > 0 || instrumental);
+        out.addProperty("synced", lines.size() > 0);
+        out.addProperty("instrumental", instrumental);
+        out.add("lines", lines);
+        return out;
+    }
+
+    /** "[01:02.50] words" lines → [{t: 62500, l: "words"}], sorted; a line can carry several tags. */
+    static JsonArray parseLrc(String lrc) {
+        java.util.List<long[]> times = new java.util.ArrayList<long[]>();
+        java.util.List<String> texts = new java.util.ArrayList<String>();
+        for (String raw : lrc.split("\r?\n")) {
+            java.util.regex.Matcher m = LRC_TAG.matcher(raw);
+            java.util.List<Long> ts = new java.util.ArrayList<Long>();
+            int end = 0;
+            while (m.find() && m.start() == end) {
+                long min = Long.parseLong(m.group(1));
+                double sec = Double.parseDouble(m.group(2).replace(':', '.'));
+                ts.add(min * 60000L + Math.round(sec * 1000));
+                end = m.end();
+            }
+            if (ts.isEmpty()) {
+                continue;
+            }
+            String text = raw.substring(end).trim();
+            for (Long t : ts) {
+                times.add(new long[]{t, texts.size()});
+                texts.add(text);
+            }
+        }
+        java.util.Collections.sort(times, new Comparator<long[]>() {
+            @Override
+            public int compare(long[] a, long[] b) {
+                return a[0] < b[0] ? -1 : (a[0] > b[0] ? 1 : Long.compare(a[1], b[1]));
+            }
+        });
+        JsonArray out = new JsonArray();
+        for (long[] t : times) {
+            JsonObject o = new JsonObject();
+            o.addProperty("t", t[0]);
+            o.addProperty("l", texts.get((int) t[1]));
+            out.add(o);
+        }
+        return out;
+    }
+
     // ------------------------------------------------------------------ album art proxy
 
     /** Cached bytes for an album-art URL, fetching it once; null for anything not Spotify art. */

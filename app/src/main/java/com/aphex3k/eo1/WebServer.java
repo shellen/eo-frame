@@ -280,6 +280,9 @@ public class WebServer {
         if (path.equals("/music/state")) {
             return "musicState";
         }
+        if (path.equals("/music/lyrics")) {
+            return "musicLyrics";
+        }
         if (path.equals("/music/img")) {
             return "musicImg";
         }
@@ -630,6 +633,23 @@ public class WebServer {
             case "musicState":
                 send(os, 200, "application/json", music().stateJson());
                 break;
+
+            case "musicLyrics": {
+                if (!WallSources.read(controller.uploadedDir().getParentFile()).musicLyrics) {
+                    JsonObject off = new JsonObject();
+                    off.addProperty("enabled", false);
+                    sendJson(os, 200, off);
+                    return;
+                }
+                long dur = 0;
+                try {
+                    dur = Long.parseLong(params.get("durationMs") == null ? "0" : params.get("durationMs"));
+                } catch (NumberFormatException ignored) {
+                    dur = 0;
+                }
+                sendJson(os, 200, music().lyrics(params.get("artist"), params.get("title"), params.get("album"), dur));
+                break;
+            }
 
             case "musicImg": {
                 byte[] img = music().image(params.get("u"));
@@ -1672,7 +1692,7 @@ public class WebServer {
         }
         if (ws.music) {
             out.add(webEntry(WallSources.MUSIC_ID, "http://127.0.0.1:" + boundPort + "/music/?style="
-                    + ws.musicStyle + "&lead=" + ws.musicLead));
+                    + ws.musicStyle + "&lead=" + ws.musicLead + (ws.musicLyrics ? "&lyrics=1" : "")));
         }
         if (ws.art) {
             for (int i = 1; i <= ws.artCount; i++) {
