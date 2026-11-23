@@ -293,6 +293,20 @@ public class MediaManager implements MediaManagerInterface, ApiServiceGenerator.
 
     @Override
     public void showNextImage(Activity activity) {
+        // While music plays and the phone page asked for it, the live music page holds the screen:
+        // it is pinned for every tick (never skipped, so the watchdog still sees the rotation move).
+        try {
+            if (MusicService.takeoverActive(activity.getFilesDir())) {
+                for (String key : poolKeys) {
+                    if (key.startsWith(WallSources.MUSIC_ID + ":")) {
+                        pinnedAssetKey.set(key);
+                        break;
+                    }
+                }
+            }
+        } catch (Throwable t) {
+            Log.w(TAG, "music takeover check failed: " + t);
+        }
         startRotation(activity, false);
     }
 
@@ -325,6 +339,7 @@ public class MediaManager implements MediaManagerInterface, ApiServiceGenerator.
                             },
                             false, afterWebFailure);
                 } finally {
+                    publishUpcoming();
                     showNextInFlight.set(false);
                 }
             }
@@ -2177,6 +2192,31 @@ public class MediaManager implements MediaManagerInterface, ApiServiceGenerator.
      */
     public int rotationRemainingInPass() {
         return Math.max(0, pool.size() - poolCursor);
+    }
+
+    /** Read-only copy of what comes next in this pass, published by the rotation worker. */
+    private volatile List<MediaAsset> upcoming = Collections.emptyList();
+    private volatile int upcomingPassTotal;
+
+    /** Runs on the rotation worker after each tick, the only thread that may read {@link #pool}. */
+    private void publishUpcoming() {
+        try {
+            int from = Math.min(poolCursor, pool.size());
+            int to = Math.min(pool.size(), from + 24);
+            upcoming = Collections.unmodifiableList(new ArrayList<>(pool.subList(from, to)));
+            upcomingPassTotal = pool.size();
+        } catch (Throwable t) {
+            Log.w(TAG, "publishUpcoming failed: " + t);
+        }
+    }
+
+    /** The next assets in this pass, oldest snapshot at most one tick old. Safe from any thread. */
+    public List<MediaAsset> upcomingAssets() {
+        return upcoming;
+    }
+
+    public int upcomingPassTotal() {
+        return upcomingPassTotal;
     }
 
     /** Assets in the rotation pool, from the concurrent key set. Safe to call from any thread. */

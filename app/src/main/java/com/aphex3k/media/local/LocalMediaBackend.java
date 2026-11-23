@@ -67,9 +67,13 @@ public class LocalMediaBackend implements MediaBackend {
         if (files == null) {
             return assets;
         }
+        com.aphex3k.eo1.WallSources sources = com.aphex3k.eo1.WallSources.read(uploadDir.getParentFile());
         for (File f : files) {
             if (!f.isFile()) {
                 continue;
+            }
+            if (!sources.allows(f.getName())) {
+                continue;   // that kind is switched off on the phone page
             }
             MediaType type = mediaTypeForExtension(extensionOf(f.getName()));
             if (type == null) {
