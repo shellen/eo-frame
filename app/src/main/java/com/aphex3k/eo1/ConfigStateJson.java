@@ -39,6 +39,12 @@ public final class ConfigStateJson {
             }
             backend.addProperty("enabled", entry.enabled);
             backend.addProperty("valid", entry.isValid());
+            if (entry.isWeb() && entry.id != null) {
+                com.google.gson.JsonObject shown = WebPageStatus.get(entry.id);
+                if (shown != null) {
+                    backend.add("lastShown", shown);
+                }
+            }
             backends.add(backend);
         }
         config.add("backends", backends);

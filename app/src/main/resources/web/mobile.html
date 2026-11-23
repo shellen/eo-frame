@@ -93,7 +93,7 @@ body.all .tab{margin-bottom:34px}
 .nowpanel .thumb{width:118px;aspect-ratio:9/16;background:var(--fill) center/cover no-repeat;border:1px solid var(--ink);flex:none}
 .nowtext{min-width:0;flex:1;display:flex;flex-direction:column}
 .nowtext .name{font:700 26px/1.1 var(--serif);letter-spacing:-.02em;margin:6px 0 auto;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
-.nowbtns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.nowbtns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .nowbtns .btn.off{background:var(--ink);color:var(--bg)}
 .bright{display:flex;align-items:center;gap:12px;margin-top:16px;padding:12px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
 .bright .kicker{flex:none}
@@ -137,10 +137,13 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
 .tile.picked .check{background:var(--accent);border-color:var(--accent)}
 .tile.picked .check:after{content:"";position:absolute;left:5px;top:1px;width:5px;height:10px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
 .tile.picked img{opacity:.7}
-.upnext .qi{width:96px;text-align:left}
+.upnext{align-items:flex-start}
+.upnext .qi{width:96px;text-align:left;margin-top:4px}
 .upnext .qart{position:relative;aspect-ratio:9/16;overflow:hidden;background:var(--fill) center/cover no-repeat;border-radius:3px}
 .upnext .qi.now .qart{box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--accent)}
-.upnext .qi.now{margin:4px 6px 0 4px}
+.upnext .qi.now{margin:4px 6px 0 4px;width:150px}
+.upnext .qi.now .qname{font:700 17px/1.15 var(--serif);letter-spacing:-.01em;color:var(--ink);white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.upnext .qi.now.idle .qart{background:var(--fill)}
 .upnext .qart .ql{position:absolute;left:0;top:0;background:var(--accent);color:#fff;font:700 9px var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:3px 5px}
 .upnext .qart.live-art,.upnext .qart.live-music{background-color:var(--ink)}
 .upnext .qart .qicon{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--bg);
@@ -165,6 +168,11 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
 .srcitem b{display:block;font-weight:600}
 .srcitem small{display:block;color:var(--muted);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:62vw}
 .srcitem small.bad{color:var(--bad)}
+.srcitem small.warn{color:var(--warn,#b7791f)}
+.srcitem small.st{white-space:normal;overflow:visible}
+.srcitem>span:first-child{min-width:0}
+.qart.failed .qicon,.thumb.failed{color:var(--bad)}
+.upnext .qart.live-art .qicon,.upnext .qart.live-music .qicon{color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.7)}
 .srcitem .ctl{display:flex;align-items:center;gap:12px;flex:none}
 /* library */
 .addrow{display:flex;gap:8px;align-items:stretch;margin-bottom:6px}
@@ -303,16 +311,9 @@ body.sketch .autorow > span:first-child{font-family:var(--hand);font-size:16px}
 
 <!-- ============ NOW ============ -->
 <section class="tab" data-tab="now">
-  <div class="nowpanel">
-    <div class="thumb" id="nowThumb"></div>
-    <div class="nowtext">
-      <div class="kicker">On the frame now</div>
-      <div class="name" id="nowName">—</div>
-      <div class="nowbtns">
-        <button class="btn" id="btnNext">Next</button>
-        <button class="btn" id="btnScreen"><span id="screenLabel">Turn off</span></button>
-      </div>
-    </div>
+  <div class="nowbtns">
+    <button class="btn" id="btnNext">Next picture</button>
+    <button class="btn" id="btnScreen"><span id="screenLabel">Turn off</span></button>
   </div>
   <div class="bright" id="brightRow">
     <span class="kicker">Brightness</span>
@@ -320,7 +321,7 @@ body.sketch .autorow > span:first-child{font-family:var(--hand);font-size:16px}
     <span id="brightLabel"></span>
   </div>
 
-  <div class="sectionhead"><h2>Up next</h2><span class="count" id="upWhen"></span></div>
+  <div class="sectionhead"><h2>On the frame</h2><span class="count" id="upWhen"></span></div>
   <div class="upnote" id="upNote"></div>
   <div class="carousel upnext" id="upNext"></div>
 </section>
@@ -476,7 +477,7 @@ body.sketch .autorow > span:first-child{font-family:var(--hand);font-size:16px}
       </div>
       <div class="srcform" data-for="web" hidden>
         <input id="wbUrl" placeholder="Page address, e.g. http://192.168.1.20/dashboard/" autocomplete="off" autocapitalize="off" spellcheck="false">
-        <p class="hint">The page is shown full screen in the frame’s 2013-era browser, so simple pages work best.</p>
+        <p class="hint">Heads up: the frame’s browser is from 2013. Simple pages and home dashboards work. Most modern sites (anything built with React, Vue or similar) load blank. After the page comes up, this list says whether it showed.</p>
       </div>
       <button class="primary" id="srcAdd" style="margin-top:10px">Add source</button>
     </div>
@@ -671,7 +672,7 @@ body.sketch .autorow > span:first-child{font-family:var(--hand);font-size:16px}
       renderNow(cur.key ? {backendId: b0, name: nm0 || undefined,
         kind: b0 === "music-1" ? "music" : /^art-keep-/.test(b0) ? "art" : /^art-/.test(b0) ? "art-live" : cur.type === "web" ? "web" : b0 === "local" ? kindOf(nm0) : b0.replace(/-\d+$/, "")} : null, on);
     }
-    renderSettings(cfg); renderMoreSources(cfg);
+    renderSettings(cfg); renderMoreSources(cfg); if (queue) renderQueue();
   }
   function markCurrent(n){
     Array.prototype.forEach.call(document.querySelectorAll(".tile"), function(t){
@@ -752,6 +753,7 @@ body.sketch .autorow > span:first-child{font-family:var(--hand);font-size:16px}
   function clock(ms){ return new Date(ms).toLocaleTimeString(undefined, {hour: "numeric", minute: "2-digit"}); }
   // One description for anything the frame can show: a name people can read, and art for it.
   var LOCAL_KINDS = {photos: 1, art: 1, nyt: 1, spotify: 1};
+  var WEB_HOSTS = {};
   function describe(item){
     var k = item.kind || "", nm = item.name || "";
     if (k === "music") {
@@ -761,23 +763,35 @@ body.sketch .autorow > span:first-child{font-family:var(--hand);font-size:16px}
     if (k === "art-live") return {name: "Generative art · a new piece", img: "", cls: "live-art", label: "Generative art"};
     if (k === "art" && !nm) return {name: "Kept art", img: "", cls: "live-art", label: "Kept art"};
     if (LOCAL_KINDS[k] && nm) return {name: friendlyName(nm), img: VIDEO.test(nm) ? "" : thumbUrl(nm), cls: "", label: VIDEO.test(nm) ? "Video" : ""};
-    var src = k === "immich" ? "Immich" : k === "flickr" ? "Flickr" : k === "web" ? "Web page" : "Photo";
+    if (k === "web") {
+      var host = (WEB_HOSTS[item.backendId] || "").replace(/^https?:\/\//, "").replace(/\/$/, "");
+      var bad = item.lastShown && item.lastShown.ok === false;
+      return {name: "Web page" + (host ? " · " + host : "") + (bad ? " (didn’t load last time)" : ""), img: "", cls: "remote" + (bad ? " failed" : ""), label: bad ? "Didn’t load" : "Web page"};
+    }
+    var src = k === "immich" ? "Immich" : k === "flickr" ? "Flickr" : "Photo";
     return {name: src + (nm ? " · " + nm.replace(/\.[^.]+$/, "") : ""), img: "", cls: "remote", label: src};
   }
+  // The first slot of the "On the frame" row is the preview of what's showing.
+  function nowTile(item, on){
+    if (item) return queueTile(item, on ? "Showing" : "Screen off", true);
+    var b = document.createElement("div"); b.className = "qi now idle";
+    b.innerHTML = '<div class="qart"><div class="qicon"></div></div><div class="qwhen"></div><div class="qname"></div>';
+    b.querySelector(".qicon").textContent = on ? "…" : "Off";
+    b.querySelector(".qwhen").textContent = on ? "Starting" : "Screen off";
+    b.querySelector(".qname").textContent = on ? "Nothing yet" : "Sleeping";
+    return b;
+  }
   function renderNow(item, on){
-    if (!item) { $("nowName").textContent = on ? "—" : "Sleeping"; $("nowThumb").style.backgroundImage = ""; $("nowThumb").className = "thumb"; $("nowThumb").textContent = ""; markCurrent(""); return; }
-    var d = describe(item);
-    $("nowName").textContent = d.name;
-    $("nowThumb").className = "thumb" + (d.cls ? " " + d.cls : "");
-    $("nowThumb").style.backgroundImage = d.img ? 'url("' + d.img + '")' : "";
-    $("nowThumb").textContent = d.img ? "" : d.label;
-    markCurrent(item.name || "");
+    markCurrent(item && item.name || "");
+    if (queue) return;   // renderQueue owns the row once /queue answers
+    var box = $("upNext"); box.innerHTML = "";
+    box.appendChild(nowTile(item, on));
   }
   function queueTile(item, label, isNow){
     var b = document.createElement("button"); b.className = "qi" + (isNow ? " now" : "");
     var art = document.createElement("div"); art.className = "qart";
     var d = describe(item), name = d.name;
-    if (d.cls) art.classList.add(d.cls);
+    if (d.cls) art.className += " " + d.cls;
     if (d.img) art.style.backgroundImage = 'url("' + d.img + '")'; else art.innerHTML = '<div class="qicon"></div>', art.firstChild.textContent = d.label;
     if (isNow) { var l = document.createElement("div"); l.className = "ql"; l.textContent = "On now"; art.appendChild(l); }
     var w = document.createElement("div"); w.className = "qwhen"; w.textContent = label;
@@ -800,10 +814,10 @@ body.sketch .autorow > span:first-child{font-family:var(--hand);font-size:16px}
     $("upNote").textContent = notes.join(" ");
     var mins = Math.max(0, Math.round((base - now) / 60000));
     $("upWhen").textContent = "every " + intervalLabel(q.intervalMinutes || 5);
-    renderNow(q.now || null, q.screenOn !== false);
-    if (q.now) box.appendChild(queueTile(q.now, "Showing", true));
+    markCurrent(q.now && q.now.name || "");
+    box.appendChild(nowTile(q.now || null, q.screenOn !== false));
     (q.upNext || []).forEach(function(it, i){
-      var label = i === 0 ? (mins <= 0 ? "Next · any moment" : "Next · in " + mins + " min") : clock(base + i * step + off);
+      var label = i === 0 ? (mins <= 0 ? "Next · soon" : "Next · " + mins + " min") : clock(base + i * step + off);
       box.appendChild(queueTile(it, label, false));
     });
     var shown = (q.upNext || []).length, rest = (q.remainingInPass || 0) - shown;
@@ -1753,7 +1767,16 @@ body.sketch .autorow > span:first-child{font-family:var(--hand);font-size:16px}
       ttl.textContent = SRC_NAMES[b.type];
       det.textContent = !b.valid ? "Incomplete. Remove it and add it again" : (b.host || b.source || "");
       if (!b.valid) det.className = "bad";
-      t.appendChild(ttl); t.appendChild(det);
+      if (b.type === "web") WEB_HOSTS[b.id] = b.host || "";
+      var ls = b.type === "web" && b.valid ? b.lastShown : null;
+      var stl = null;
+      if (ls) {
+        stl = document.createElement("small");
+        if (ls.ok === false) { stl.textContent = "Couldn’t load on the frame at " + clock(ls.atMs) + ": " + ls.error + "."; stl.className = "st bad"; }
+        else if (ls.warning) { stl.textContent = "Loaded at " + clock(ls.atMs) + ", but " + ls.warning + "."; stl.className = "st warn"; }
+        else { stl.textContent = "Showed fine at " + clock(ls.atMs); stl.className = "st"; }
+      }
+      t.appendChild(ttl); t.appendChild(det); if (stl) t.appendChild(stl);
       var ctl = document.createElement("span"); ctl.className = "ctl";
       var rm = document.createElement("button"); rm.className = "linkbtn"; rm.textContent = "Remove";
       rm.onclick = function(){ askConfirm("Remove this " + SRC_NAMES[b.type] + " source?", "Remove", "Its pictures leave the rotation. You can add it again later.").then(function(y){ if (y) backendChange({op: "remove", id: b.id}, "Removed").catch(function(e){ toast("Couldn’t remove it: " + e.message, 4000); }); }); };

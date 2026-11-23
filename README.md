@@ -29,7 +29,9 @@ albums you've been playing. There are no accounts, no subscription and no cloud 
   and Spotify). Tap a picture to preview it, **Show now** or **Remove** it, or select several.
 - **Control the frame:** next picture, screen on or off, and a brightness slider.
 - **Bring in other sources:** your own Immich server, a Flickr stream or any web page, added from the
-  phone.
+  phone. The frame's browser is from 2013, so simple pages work best. When a site's certificate or
+  ciphers are too new for it, the frame fetches that site through the same modern TLS library the
+  Spotify client uses. The phone page says whether each web page showed, failed or came up blank.
 - **Choose what's on the wall:** switch Photos, Generative art, the NYT front page and Spotify on or
   off in any mix, and choose how often art comes up.
 - **Never fills up.** Old generated images (yesterday's front page, last week's album grid) are

@@ -34,7 +34,10 @@ import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
 import android.view.animation.AlphaAnimation;
+import android.net.http.SslError;
 import android.webkit.DownloadListener;
+import android.webkit.SslErrorHandler;
+import android.webkit.WebResourceResponse;
 import android.webkit.JsPromptResult;
 import android.webkit.JsResult;
 import android.webkit.WebChromeClient;
@@ -171,6 +174,11 @@ public class MainActivity extends AppCompatActivity implements BrightnessManager
     private String webUrlOnScreen = "";
     /** Set once the current load has painted, so a dead sub-resource is not a failed page. */
     private boolean webLoadProducedPaint;
+    /** Reloads this page has spent switching hosts to the modern-TLS fallback (capped per load). */
+    private int webTlsRetries;
+    /** Why the page in flight is likely to fail, if the browser has said so before the watchdog fires. */
+    @Nullable
+    private String webPendingReason;
     private Runnable webLoadWatchdogRunnable;
     /** Sticky: this ROM offered no usable WebView provider, so web assets are skipped from here on. */
     private boolean webViewUnavailable;
@@ -2744,6 +2752,8 @@ public class MainActivity extends AppCompatActivity implements BrightnessManager
             }
 
             webLoadProducedPaint = false;
+            webTlsRetries = 0;
+            webPendingReason = null;
             // The record exists <em>before</em> the surface becomes visible. A panel re-derived from the
             // view tree while the browser was showing but its record still named the previous page would
             // adopt that page as what is on screen, so the ownership has to be in place the moment the
@@ -2823,6 +2833,7 @@ public class MainActivity extends AppCompatActivity implements BrightnessManager
             settings.setSaveFormData(false);
             settings.setCacheMode(WebSettings.LOAD_DEFAULT);
             settings.setDefaultTextEncodingName("utf-8");
+            ModernWebFetcher.setUserAgent(settings.getUserAgentString());
 
             view.setBackgroundColor(Color.BLACK);
             view.setHorizontalScrollBarEnabled(false);
@@ -2869,6 +2880,27 @@ public class MainActivity extends AppCompatActivity implements BrightnessManager
             return !(lower.startsWith("http://") || lower.startsWith("https://"));
         }
 
+        /**
+         * KitKat's browser trusts only 2013's roots, so many current certificates (Let's Encrypt's
+         * among them) fail here. The host is moved to the modern-TLS fallback and the page reloaded;
+         * the error itself is never waved through.
+         */
+        @Override
+        public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
+            handler.cancel();
+            String failing = error == null ? null : error.getUrl();
+            Log.w(TAG, "web: certificate error " + (error == null ? "?" : error.getPrimaryError()) + " for " + failing);
+            if (!retryWithModernTls(view, failing)) {
+                webPendingReason = "the site's security certificate isn't trusted by the frame";
+            }
+        }
+
+        @Override
+        @SuppressWarnings("deprecation") // the request-object overload is API 21+
+        public WebResourceResponse shouldInterceptRequest(WebView view, String url) {
+            return ModernWebFetcher.intercept(url);
+        }
+
         @Override
         public void onPageFinished(WebView view, String url) {
             if (!Objects.equals(url, webUrlOnScreen)) {
@@ -2896,6 +2928,8 @@ public class MainActivity extends AppCompatActivity implements BrightnessManager
             // perfectly good page over a visibility accident.
             webLoadProducedPaint = true;
             cancelWebLoadWatchdog();
+            WebPageStatus.rendered(activeWebAssetId, System.currentTimeMillis());
+            probeForBlankPage(view, activeWebAssetId);
             if (view.getVisibility() != View.VISIBLE) {
                 Log.i(TAG, "onPageFinished: " + url + " rendered while the browser is hidden; retained only");
                 return;
@@ -2923,7 +2957,12 @@ public class MainActivity extends AppCompatActivity implements BrightnessManager
                         + " " + description + ") — page stays");
                 return;
             }
+            if (errorCode == ERROR_FAILED_SSL_HANDSHAKE && retryWithModernTls(view, failingUrl)) {
+                return;
+            }
             Log.w(TAG, "web: " + failingUrl + " failed (" + errorCode + "): " + description);
+            WebPageStatus.failed(activeWebAssetId, WebPageStatus.friendlyReason(errorCode, description),
+                    System.currentTimeMillis());
             noteDisplayFailure(activeWebAssetId, "page failed (" + errorCode + "): " + description + " for " + failingUrl);
             abandonWebPage();
         }
@@ -2950,6 +2989,63 @@ public class MainActivity extends AppCompatActivity implements BrightnessManager
             result.cancel();
             return true;
         }
+    }
+
+    /**
+     * Routes the failing request's host through {@link ModernWebFetcher} and reloads the page in
+     * flight. Capped at three hosts per load so a page cannot keep the frame reloading.
+     *
+     * @return true when a reload was started
+     */
+    private boolean retryWithModernTls(WebView view, @Nullable String failingUrl) {
+        if (webTlsRetries >= 3 || !webLoadOwnsSurfaces || webUrlOnScreen.isEmpty()
+                || !ModernWebFetcher.available()) {
+            return false;
+        }
+        String host = ModernWebFetcher.hostOf(failingUrl);
+        if (host == null || !ModernWebFetcher.routeHost(host)) {
+            return false;
+        }
+        webTlsRetries++;
+        Log.i(TAG, "web: " + host + " now loads through the modern-TLS fallback; reloading " + webUrlOnScreen);
+        final String page = webUrlOnScreen;
+        handler.post(() -> {
+            if (webView == view && page.equals(webUrlOnScreen)) {
+                view.stopLoading();
+                view.loadUrl(page);
+                if (!webLoadProducedPaint) {
+                    startWebLoadWatchdog();
+                }
+            }
+        });
+        return true;
+    }
+
+    /**
+     * A page whose code is too new for this browser often "finishes" with nothing drawn. A few
+     * seconds after it loads, count what is on it; an empty page gets a warning for the phone page.
+     */
+    private void probeForBlankPage(WebView view, String assetKey) {
+        handler.postDelayed(() -> {
+            if (webView != view || !assetKey.equals(activeWebAssetId)) {
+                return;
+            }
+            try {
+                view.evaluateJavascript("(function(){var b=document.body;if(!b)return 0;"
+                        + "return (b.innerText||'').replace(/\\s/g,'').length"
+                        + "+50*(b.getElementsByTagName('img').length+b.getElementsByTagName('canvas').length"
+                        + "+b.getElementsByTagName('svg').length+b.getElementsByTagName('video').length);})()",
+                        value -> {
+                            if ("0".equals(value) && assetKey.equals(activeWebAssetId)) {
+                                Log.w(TAG, "web: " + webUrlOnScreen + " loaded but shows nothing");
+                                WebPageStatus.warn(assetKey, "loaded but showed nothing; its code may be too new"
+                                        + " for the frame's browser", System.currentTimeMillis());
+                            }
+                        });
+            } catch (Throwable t) {
+                Log.w(TAG, "web: blank-page probe failed: " + t);
+            }
+        }, 6000L);
     }
 
     /**
@@ -3028,6 +3124,8 @@ public class MainActivity extends AppCompatActivity implements BrightnessManager
                 Log.w(TAG, "web: " + webUrlOnScreen + " showed nothing within "
                         + WEB_LOAD_TIMEOUT_MS / 1000L + "s; advancing to the next asset");
                 noteDisplayFailure(activeWebAssetId, "load timed out for " + webUrlOnScreen);
+                WebPageStatus.failed(activeWebAssetId, webPendingReason != null ? webPendingReason
+                        : "nothing showed within " + WEB_LOAD_TIMEOUT_MS / 1000L + " seconds", System.currentTimeMillis());
                 abandonWebPage();
             }
         };
@@ -5622,6 +5720,10 @@ public class MainActivity extends AppCompatActivity implements BrightnessManager
             kind = "art-live";
         } else if (a.type == MediaType.WEB) {
             kind = "web";
+            JsonObject shown = WebPageStatus.get(b);
+            if (shown != null) {
+                i.add("lastShown", shown);
+            }
         } else if (b.startsWith("immich")) {
             kind = "immich";
         } else if (b.startsWith("flickr")) {

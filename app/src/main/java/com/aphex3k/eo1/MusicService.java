@@ -316,24 +316,10 @@ public final class MusicService {
                 .connectTimeout(15, TimeUnit.SECONDS)
                 .readTimeout(20, TimeUnit.SECONDS)
                 .writeTimeout(15, TimeUnit.SECONDS);
-        try {
-            java.security.Provider provider = org.conscrypt.Conscrypt.newProvider();
-            javax.net.ssl.X509TrustManager tm = com.aphex3k.eo1.trust.MergedTrust.create(true).trustManager;
-            if (tm == null) {
-                tm = org.conscrypt.Conscrypt.getDefaultX509TrustManager();
-            }
-            javax.net.ssl.SSLContext sc = javax.net.ssl.SSLContext.getInstance("TLS", provider);
-            sc.init(null, new javax.net.ssl.TrustManager[]{tm}, null);
-            b.sslSocketFactory(new HostnameSocketFactory(sc.getSocketFactory()), tm);
-            // TLS 1.2 with AES-GCM is what Spotify needs. Capped there because in TLS 1.3 Conscrypt
-            // reports the key exchange as "GENERIC", which the merged trust manager rejects.
-            b.connectionSpecs(java.util.Collections.singletonList(
-                    new okhttp3.ConnectionSpec.Builder(okhttp3.ConnectionSpec.MODERN_TLS)
-                            .tlsVersions(okhttp3.TlsVersion.TLS_1_2).build()));
+        if (ModernTls.apply(b)) {
             http = b.build();
-            Log.i(TAG, "Spotify TLS via Conscrypt " + provider.getName());
-        } catch (Throwable t) {
-            Log.w(TAG, "Conscrypt unavailable, using the platform TLS stack: " + t);
+            Log.i(TAG, "Spotify TLS via Conscrypt");
+        } else {
             http = ApiServiceGenerator.enableTls12OnPreLollipop(b, null).build();
         }
         return http;
