@@ -509,7 +509,10 @@ public class UpdateManager {
                 return withState(state, UpdateState.State.IDLE, "interrupted-by-restart");
             case INSTALL_PENDING:
             case STAGED:
-                if (state.expectedVersionCode > 0 && state.expectedVersionCode == installedVersionCode) {
+                // Not newer than what is running: either the update completed, or the stage was
+                // overtaken by a newer build installed another way (adb, the phone page) and can
+                // only ever fail with INSTALL_FAILED_VERSION_DOWNGRADE. Either way it is done.
+                if (state.expectedVersionCode > 0 && state.expectedVersionCode <= installedVersionCode) {
                     UpdateState fresh = new UpdateState();
                     fresh.lastCheckedMs = state.lastCheckedMs;
                     return fresh; // success: IDLE, attempts reset

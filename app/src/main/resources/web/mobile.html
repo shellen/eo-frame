@@ -169,6 +169,7 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
 .srcitem small{display:block;color:var(--muted);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:62vw}
 .srcitem small.bad{color:var(--bad)}
 .srcitem small.warn{color:var(--warn,#b7791f)}
+.updbtns{display:flex;flex-direction:column;align-items:center;gap:10px;flex:none}
 .srcitem small.st{white-space:normal;overflow:visible}
 .srcitem>span:first-child{min-width:0}
 .qart.failed .qicon,.thumb.failed{color:var(--bad)}
@@ -519,7 +520,7 @@ body.sketch .autorow > span:first-child{font-family:var(--hand);font-size:16px}
   <div class="sectionhead"><h2>Maintenance</h2></div>
   <div class="list">
     <div class="mrow"><span><b>Update the frame</b><small id="updStatus">Install a newer APK from this phone</small></span><button class="btn small" id="updPick">Choose APK…</button></div>
-    <div class="mrow" id="updStagedRow" hidden><span><b id="updStagedTitle">Update waiting</b><small id="updStagedWhy"></small></span><button class="btn small go" id="updInstall">Install</button></div>
+    <div class="mrow" id="updStagedRow" hidden><span><b id="updStagedTitle">Update waiting</b><small id="updStagedWhy"></small></span><span class="updbtns"><button class="btn small go" id="updInstall">Install</button><button class="linkbtn" id="updDiscard">Discard</button></span></div>
     <input type="file" id="updFile" accept=".apk,application/vnd.android.package-archive" hidden>
     <div class="mrow"><span><b>Restart the app</b><small>Fixes a stuck picture. Takes a few seconds</small></span><button class="btn small" id="mRestart">Restart</button></div>
     <div class="mrow"><span><b>Reboot the frame</b><small>A full restart. Back in about a minute</small></span><button class="btn small danger" id="mReboot">Reboot</button></div>
@@ -1682,9 +1683,18 @@ body.sketch .autorow > span:first-child{font-family:var(--hand);font-size:16px}
     $("updStagedRow").hidden = !waiting;
     if (!waiting) return;
     $("updStagedTitle").textContent = (u.expectedVersionName ? "Version " + u.expectedVersionName : "An update") + (u.state === "STAGED" ? " is waiting" : " is installing");
-    $("updStagedWhy").textContent = updWhy(u);
-    $("updInstall").hidden = u.state !== "STAGED";
+    var older = /VERSION_DOWNGRADE/.test(u.lastError || "");
+    $("updStagedWhy").textContent = older ? "It’s older than the version the frame is running, so it can’t install. Discard it." : updWhy(u);
+    $("updInstall").hidden = u.state !== "STAGED" || older;
+    $("updDiscard").hidden = u.state !== "STAGED";
   }
+  $("updDiscard").onclick = function(){
+    $("updDiscard").disabled = true;
+    api("/control?action=update-reset").catch(function(){}).then(function(){
+      toast("Discarded the waiting update", 3000);
+      setTimeout(function(){ $("updDiscard").disabled = false; refreshState(); }, 2500);
+    });
+  };
   $("updInstall").onclick = function(){
     $("updInstall").disabled = true;
     api("/control?action=install-staged").catch(function(){}).then(function(){
