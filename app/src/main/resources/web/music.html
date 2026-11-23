@@ -40,6 +40,7 @@
   if (lead !== 'track' && lead !== 'date') { lead = 'artist'; }
   var preview = qs('preview') === '1';
   var demoParam = qs('demo');
+  var lyricsOn = qs('lyrics') === '1';
   var isDemo = demoParam !== null && demoParam !== '0' && demoParam !== '';
   var S = preview ? 0.5 : (qs('scale') === '1' ? 2 : 1);
 
@@ -520,7 +521,8 @@
         key: 't|' + (c.title || '') + '|' + (c.artist || '') + '|' + (c.album || ''),
         kind: 'track', mode: playing ? 'playing' : 'last',
         title: c.title || '', artist: c.artist || '', album: c.album || '', artUrl: c.art || '',
-        progressMs: c.progressMs || 0, durationMs: c.durationMs || 0, progAt: t,
+        progressMs: c.progressMs || 0, durationMs: c.durationMs || 0,
+        progAt: (js.updatedAt && Math.abs(t - js.updatedAt) < 20000) ? js.updatedAt : t,
         playedAt: playing ? t : (js.updatedAt || t)
       });
     } else if (l && (l.title || l.artist)) {
@@ -1440,6 +1442,164 @@
   }
 
   /* ================================================================
+     lyrics layer: timed lyrics over any style, when the song has them
+     ================================================================ */
+
+  var DEMO_LYRICS = [
+    'Harbor lights are waking up the water', 'Every boat is turning to the east', '',
+    'I kept your letters in a coffee tin', 'Folded small enough to fit the sea',
+    'Morning hums along the fishing lines', 'Somebody is singing on the pier', '',
+    'Hold on, the tide is coming in', 'Hold on, the tide is coming in',
+    'Gulls are writing circles in the sky', 'Saying everything we never said'
+  ];
+  function demoLyrics(durationMs) {
+    var out = [], i, step = 6500;
+    for (i = 0; i < DEMO_LYRICS.length * 3; i++) {
+      if (8000 + i * step > durationMs) { break; }
+      out.push({ t: 8000 + i * step, l: DEMO_LYRICS[i % DEMO_LYRICS.length] });
+    }
+    return { found: true, synced: true, lines: out };
+  }
+
+  function LyricsLayer(base) {
+    var lyr = { key: '', status: 'none', lines: [] }, reqSeq = 0;
+    var cache = {}, cacheKey = '', head = null, shownIdx = -2, changedAt = 0, prevIdx = -2, activeSince = -1;
+
+    function fetchFor(sc) {
+      if (!sc || sc.kind !== 'track' || lyr.key === sc.key) { return; }
+      lyr = { key: sc.key, status: 'loading', lines: [] };
+      var seq = ++reqSeq, key = sc.key;
+      if (isDemo) {
+        var d = demoLyrics(sc.durationMs || 200000);
+        lyr = { key: key, status: 'ok', lines: d.lines };
+        return;
+      }
+      var x = new XMLHttpRequest();
+      try {
+        x.open('GET', '/music/lyrics?artist=' + encodeURIComponent(sc.artist || '') + '&title=' + encodeURIComponent(sc.title || '') +
+          '&album=' + encodeURIComponent(sc.album || '') + '&durationMs=' + (sc.durationMs || 0), true);
+        x.timeout = 20000;
+        x.onreadystatechange = function () {
+          if (x.readyState !== 4 || seq !== reqSeq) { return; }
+          var js = null;
+          if (x.status === 200) { try { js = JSON.parse(x.responseText); } catch (e) { js = null; } }
+          var ok = js && js.synced && js.lines && js.lines.length;
+          lyr = { key: key, status: ok ? 'ok' : 'none', lines: ok ? js.lines : [] };
+          /* a failed lookup (frame offline) is retried on the next song, not this one */
+        };
+        x.send(null);
+      } catch (e2) { lyr = { key: key, status: 'none', lines: [] }; }
+    }
+
+    function idxAt(el) {
+      var a = lyr.lines, i, k = -1;
+      for (i = 0; i < a.length; i++) { if (a[i].t <= el + 250) { k = i; } else { break; } }
+      return k;
+    }
+    function isBreak(i) { return i < 0 || !lyr.lines[i] || !String(lyr.lines[i].l).replace(/\s+/g, ''); }
+
+    function texture(i, which, ink) {
+      var k = i + ':' + which;
+      if (cache[k]) { return cache[k]; }
+      var txt = String(lyr.lines[i].l), f;
+      if (which === 'big') {
+        f = fitWrap(txt, '700', W - 84, 4, 60, 30);
+        cache[k] = makeText(f.lines, '700', f.s, css(ink), { lh: f.s * 1.12 });
+      } else {
+        f = fitWrap(txt, '600', W - 84, 2, 27, 20);
+        cache[k] = makeText(f.lines, '600', f.s, css(ink), { lh: f.s * 1.18 });
+      }
+      return cache[k];
+    }
+
+    function buildHead(sc) {
+      var ink = sc.pal.ink, cov = makeCover(sc.art, 72);
+      var tt = fitWrap(sc.title || '', '700', W - 160, 1, 22, 16), ar = fitWrap(sc.artist || '', '500', W - 160, 1, 18, 14);
+      return { cov: cov, title: makeText(tt.lines, '700', tt.s, css(ink)), artist: makeText(ar.lines, '500', ar.s, css(ink, 0.7)) };
+    }
+
+    function active() {
+      return curScene && curScene.kind === 'track' && curScene.mode === 'playing' && lyr.key === curScene.key &&
+        lyr.status === 'ok' && lyr.lines.length > 0 && progressOf(curScene) !== null;
+    }
+
+    function drawLyrics(ctx, t) {
+      var sc = curScene, pal = sc.pal, ink = pal.ink, pr = progressOf(sc);
+      if (cacheKey !== sc.key) { cache = {}; cacheKey = sc.key; head = buildHead(sc); shownIdx = -2; }
+      /* backdrop: the album's colour, deepening downward, with one slow glow */
+      var g = ctx.createLinearGradient(0, 0, 0, H);
+      var darkInk = lum(ink) < 0.4;
+      g.addColorStop(0, css(pal.bg)); g.addColorStop(1, css(mix(pal.bg, darkInk ? [255, 255, 255] : [0, 0, 0], darkInk ? 0.25 : 0.55)));
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      var gx = W * (0.5 + 0.3 * Math.sin(t * 0.07)), gy = H * (0.45 + 0.2 * Math.cos(t * 0.05));
+      var rg = ctx.createRadialGradient(gx, gy, 10, gx, gy, W * 0.9);
+      rg.addColorStop(0, css(pal.accent, 0.35)); rg.addColorStop(1, css(pal.accent, 0));
+      ctx.fillStyle = rg; ctx.fillRect(0, 0, W, H);
+
+      /* header: cover, title, artist */
+      blit(ctx, head.cov, 40, 56);
+      blit(ctx, head.title, 128 - head.title.pad, 64 - head.title.pad);
+      blit(ctx, head.artist, 128 - head.artist.pad, 96 - head.artist.pad);
+
+      var i = idxAt(pr.el);
+      if (i !== shownIdx) { prevIdx = shownIdx; shownIdx = i; changedAt = t; }
+      var u = clamp01((t - changedAt) / 0.5), e = easeOutCubic(u);
+      var cy = H * 0.47, x0 = 42;
+
+      /* previous line, drifting up and out */
+      if (prevIdx >= 0 && !isBreak(prevIdx)) {
+        var pv = texture(prevIdx, 'small', ink);
+        ctx.globalAlpha = 0.32 * (0.6 + 0.4 * e);
+        blit(ctx, pv, x0 - pv.pad, cy - 150 - pv.th - pv.pad - 20 * (1 - e));
+      }
+      /* current line */
+      if (isBreak(i)) {
+        var k, ph = t * 2.2;
+        for (k = 0; k < 3; k++) {
+          ctx.globalAlpha = 0.35 + 0.45 * (0.5 + 0.5 * Math.sin(ph - k * 0.9));
+          ctx.fillStyle = css(ink);
+          ctx.beginPath(); ctx.arc(x0 + 10 + k * 30, cy, 8, 0, TAU); ctx.fill();
+        }
+      } else {
+        var cur = texture(i, 'big', ink);
+        ctx.globalAlpha = e;
+        blit(ctx, cur, x0 - cur.pad, cy - cur.th / 2 - cur.pad + 26 * (1 - e));
+      }
+      /* next line */
+      var n = i + 1;
+      while (n < lyr.lines.length && isBreak(n)) { n++; }
+      if (n < lyr.lines.length) {
+        var nx = texture(n, 'small', ink);
+        ctx.globalAlpha = 0.5 * e;
+        blit(ctx, nx, x0 - nx.pad, cy + 150 - nx.pad + 16 * (1 - e));
+      }
+      ctx.globalAlpha = 1;
+
+      /* progress */
+      ctx.fillStyle = css(ink, 0.18); ctx.fillRect(40, H - 70, W - 80, 3);
+      ctx.fillStyle = css(ink, 0.85); ctx.fillRect(40, H - 70, (W - 80) * pr.p, 3);
+    }
+
+    return {
+      setScene: function (sc, prev) { base.setScene(sc, prev); if (sc && sc.kind === 'track') { fetchFor(sc); } },
+      refresh: function () { base.refresh(); cache = {}; cacheKey = ''; },
+      frame: function (ctx, t, dt) {
+        if (!active()) { activeSince = -1; base.frame(ctx, t, dt); return; }
+        if (activeSince < 0) { activeSince = t; }
+        var a = clamp01((t - activeSince) / 0.8);
+        if (a < 1) { base.frame(ctx, t, dt); ctx.globalAlpha = 1; }
+        if (a < 1) {
+          /* fade the lyrics in over whatever the style was showing */
+          ctx.save(); ctx.globalAlpha = a; drawLyrics(ctx, t); ctx.restore();
+        } else {
+          drawLyrics(ctx, t);
+        }
+        ctx.globalAlpha = 1;
+      }
+    };
+  }
+
+  /* ================================================================
      boot
      ================================================================ */
 
@@ -1461,7 +1621,8 @@
   window.addEventListener('resize', fit, false);
 
   style = styleId === 'liquid' ? LiquidStyle() : (styleId === 'wall' ? WallStyle() : KineticStyle());
-  window.MUSIC_CURRENT = { style: styleId, lead: lead };
+  if (lyricsOn) { style = LyricsLayer(style); }
+  window.MUSIC_CURRENT = { style: styleId, lead: lead, lyrics: lyricsOn };
   var stats = window.MUSIC_STATS = { style: styleId, frames: 0, totalMs: 0, maxMs: 0, avgMs: 0 };
 
   wantScene({ key: 'idle:empty', kind: 'empty', mode: 'idle' });

@@ -23,11 +23,13 @@ albums you've been playing. There are no accounts, no subscription and no cloud 
 - **Add photos and GIFs.** Photos are resized and converted on your phone before they're sent,
   so iPhone HEIC photos work and the frame gets small, ready-to-show files. Choose **Fill** (crop
   to the frame) or **Whole** (the full photo on a blurred background). Animated GIFs play as GIFs.
-- **See what's coming up.** An Up next carousel shows what's on the frame now and what's next, with
-  times, including the live art and music pages and the extras.
+- **See what's on and what's coming up.** The Now tab opens with the controls, then one row: the
+  first, larger slot is what's on the frame right now, followed by what's next with times,
+  including the live art and music pages and the extras.
 - **Manage the rotation.** Your library is laid out as one row per source (photos, kept art, NYT
   and Spotify). Tap a picture to preview it, **Show now** or **Remove** it, or select several.
-- **Control the frame:** next picture, screen on or off, and a brightness slider.
+- **Control the frame:** next picture, screen on or off, and a brightness slider, at the top of the
+  Now tab.
 - **Bring in other sources:** your own Immich server, a Flickr stream or any web page, added from the
   phone. The frame's browser is from 2013, so simple pages work best. When a site's certificate or
   ciphers are too new for it, the frame fetches that site through the same modern TLS library the
@@ -39,7 +41,8 @@ albums you've been playing. There are no accounts, no subscription and no cloud 
 - **Simple settings:** how often the picture changes (1 minute to 1 day), night-time sleep hours,
   time zone, and the frame's name.
 - **Look after the frame:** update it, restart the app or reboot the frame from the Frame tab,
-  no computer needed.
+  no computer needed. An update left waiting that's older than what's running is cleared on its
+  own, or with **Discard**.
 - **Four simple tabs:** Now, Library, Extras and Frame. Add it to your home screen and it opens
   like an app.
 
@@ -63,6 +66,13 @@ albums you've been playing. There are no accounts, no subscription and no cloud 
   artist, the song or the date, and let it take over the frame while music plays. There's also a
   still or animated grid of the albums you've played recently.
   One-time setup: [SPOTIFY-AND-TAILSCALE.md](kit/SPOTIFY-AND-TAILSCALE.md).
+- **Lyrics, optional.** Switch on **Show lyrics when a song has them** and, when a song has timed
+  lyrics, the music page shows the current line large over the album's colors, with the lines
+  before and after dimmed, in step with the song. Lyrics come from [LRCLIB](https://lrclib.net), a
+  free, community-run lyrics database; only the song's name, artist, album and length are sent.
+  Songs without timed lyrics keep your chosen style. Off by default.
+
+![Timed lyrics on the frame, and the switch on the phone page](docs/eo-frame/lyrics.jpg)
 - **Away from home:** reach the page over [Tailscale](kit/SPOTIFY-AND-TAILSCALE.md#tailscale-the-phone-page-from-anywhere).
 
 ## Set up a frame (about 10 minutes, no keyboard)

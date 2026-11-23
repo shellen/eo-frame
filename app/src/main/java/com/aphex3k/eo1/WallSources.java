@@ -35,6 +35,8 @@ public final class WallSources {
     public String musicStyle = "kinetic";
     /** Hero line: artist, track or date. */
     public String musicLead = "artist";
+    /** Show timed lyrics (from LRCLIB) on the music page when a song has them. Off by default. */
+    public boolean musicLyrics = false;
     /** Comma-separated art style ids to choose from; empty = all styles. */
     public String artStyles = "";
 
@@ -182,6 +184,9 @@ public final class WallSources {
         if (o.has("musicTakeover")) {
             musicTakeover = o.get("musicTakeover").getAsBoolean();
         }
+        if (o.has("musicLyrics")) {
+            musicLyrics = o.get("musicLyrics").getAsBoolean();
+        }
         if (o.has("musicStyle")) {
             String v = o.get("musicStyle").getAsString();
             musicStyle = v.matches("[a-z]{1,20}") ? v : "kinetic";
@@ -212,6 +217,7 @@ public final class WallSources {
         o.addProperty("musicTakeover", musicTakeover);
         o.addProperty("musicStyle", musicStyle);
         o.addProperty("musicLead", musicLead);
+        o.addProperty("musicLyrics", musicLyrics);
         return o;
     }
 
