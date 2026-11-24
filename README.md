@@ -1,6 +1,6 @@
 # eo-frame
 
-**Bring an Electric Objects EO2 frame back to life after its servers shut down, and run it from your phone.**
+**Bring an Electric Objects EO2 (or EO1) frame back to life after its servers shut down, and run it from your phone.**
 
 ![The frame and its phone page in light and dark mode](docs/eo-frame/hero.jpg)
 
@@ -75,7 +75,11 @@ albums you've been playing. There are no accounts, no subscription and no cloud 
 ![Timed lyrics on the frame, and the switch on the phone page](docs/eo-frame/lyrics.jpg)
 - **Away from home:** reach the page over [Tailscale](kit/SPOTIFY-AND-TAILSCALE.md#tailscale-the-phone-page-from-anywhere).
 
-## Set up a frame (about 10 minutes, no keyboard)
+## Set up an EO2 (about 10 minutes, no keyboard)
+
+Not sure which frame you have? The EO2 has no buttons; the EO1 has two soft-touch buttons on the
+back and a light sensor. aphex3k's [Which frame is this?](UPSTREAM-README.md#which-frame-is-this)
+table has the full comparison. For an EO1, skip to [Set up an EO1](#set-up-an-eo1-keyboard-and-mouse-about-15-minutes).
 
 The EO2 accepts Android's debugging connection (ADB) over Wi-Fi, so everything happens from a computer
 on the same network. You need a Mac (or Linux, or Windows with WSL) and the frame on your Wi-Fi.
@@ -100,6 +104,73 @@ Manual steps and troubleshooting: [kit/EO2-SETUP.md](kit/EO2-SETUP.md).
 **Security note:** the EO2 leaves ADB open on your network with full control of the frame, and the
 phone page has no login. That's fine on a home network you trust. Don't put the frame on public or
 guest Wi-Fi, and don't expose its page to the internet.
+
+## Set up an EO1 (keyboard and mouse, about 15 minutes)
+
+> **Untested on an EO1 so far.** The app this fork builds on supports both frames and detects which
+> one it's on, and everything this fork adds runs inside that app, so it should work. If you try
+> it, please [open an issue](https://github.com/shellen/eo-frame/issues) and say how it went,
+> good or bad.
+
+The EO1 doesn't accept a wireless connection from a computer, so the setup scripts in `kit/` don't
+work on it. Instead you install the app through the frame's own browser, once, with a keyboard and
+mouse plugged in. You need:
+
+- a USB keyboard and mouse, and a USB OTG adapter (or hub) for the frame's single data port
+- the frame on your Wi-Fi (join it in the frame's own Settings, with the keyboard)
+- a computer on the same Wi-Fi, holding the APK. Until a release is published (see
+  [Licensing](#licensing)), build it yourself: see [Building the frame app](#building-the-frame-app)
+
+Steps:
+
+1. **Share the APK on your network.** In Terminal, from the folder holding the APK:
+   ```bash
+   python3 -m http.server 8000
+   ```
+   Leave it running. Find your computer's address (on a Mac: System Settings → Wi-Fi → Details).
+2. **Open the frame's browser.** Plug in the keyboard and mouse, power the frame on, and when it
+   stops at the "Getting Art" screen press **Windows + B**.
+3. **Allow the install.** Swipe down from the top right, open **Settings → Security** and tick
+   **Unknown sources**.
+4. **Download and install.** Back in the browser, go to
+   `http://<your-computer's-address>:8000/` and tap the APK. When it finishes, pull down the
+   notification bar on the top left, tap the download and agree to the install prompts.
+5. **Make it the home screen.** Unplug the power and plug it back in (leave the keyboard and mouse
+   connected). When the frame asks which app to use as the home screen, pick **EO1** and
+   **Always**.
+6. **Turn on uploads from the phone.** The app opens its options dialog on first run. On the
+   **Media** tab, click **+ Add Local uploads**, then **Save**. This is the one step that needs the
+   mouse.
+7. Open `http://<frame-ip>:8080/` on your phone and add photos. You can unplug the keyboard and
+   mouse and stop the `http.server` command.
+
+How an EO1 differs once it's running:
+
+- **Brightness follows the room.** The EO1 has a light sensor, so the phone page's brightness slider
+  sets the lowest it will go. The two buttons on the back still work: the top one turns the screen
+  on or off and BACK steps the brightness.
+- **Updates from the phone may need a click.** On the EO2 the frame installs an update on its own.
+  On an EO1 it will probably stop at Android's "Install?" prompt, so plug the mouse in and confirm.
+  **Reboot the frame** may not work for the same reason; **Restart the app** does.
+- **Less storage.** The EO1 has a smaller drive. Old generated images are cleaned up automatically
+  and the frame refuses uploads that would nearly fill it.
+- **Already running aphex3k's EO1 app?** This fork's build is signed differently, so Android won't
+  update over it. Uninstall the old app first (its uploaded photos and settings go with it), then
+  follow the steps above.
+
+aphex3k's longer guide, including writing the settings file by hand, is in
+[docs/SETUP.md](docs/SETUP.md#setup-for-eo1).
+
+## Questions, problems and ideas
+
+Please [open an issue](https://github.com/shellen/eo-frame/issues). It helps to include:
+
+- which frame (EO1 or EO2) and the app version (Frame tab → App)
+- what you did and what you saw; a photo of the frame or a screenshot of the phone page is great
+- for display problems, the last few lines starting with `web:` from `http://<frame-ip>:8080/logs`
+
+Problems that also happen with aphex3k's original app may belong upstream at
+[aphex3k/EO1](https://github.com/aphex3k/EO1/issues).
 
 ## What's in this repo
 
